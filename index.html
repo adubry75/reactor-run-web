@@ -254,7 +254,7 @@ const music = {
     this.next = a.currentTime + 0.1; setInterval(() => this.tick(), 25);
     tracks.preload('hangar'); const w = this.want; this.want = null; tracks.key = null; this.set(w || 'hangar');
   },
-  set(s) { tracks.set(s); this.want = s && !tracks.has(s) ? s : null; },
+  set(s) { tracks.set(s); this.want = s && (!tracks.has(s) || !tracks.ready()) ? s : null; },
   toggle() { this.enabled = !this.enabled; save.music = this.enabled; persist(); if (this.g) this.g.gain.setTargetAtTime(this.enabled ? MUSIC_VOL : 0, audio.a.currentTime, 0.1); tracks.retarget(); syncMusicBtn(); },
   tick() {
     const a = audio.a; if (!a) return;
@@ -320,6 +320,7 @@ const STATE_TRACK = { hangar: 'hangar', fight: 'lockdown', explore: 'explore', l
 const TRACK_VOL = 0.6, XFADE = 1.4;
 const tracks = {
   els: {}, failed: {}, take: {}, cur: null, key: null, fades: new Map(),
+  ready() { return !!this.cur && this.cur.readyState >= 3; }, // HAVE_FUTURE_DATA: can play now
   has(state) { const k = STATE_TRACK[state]; return !!k && TRACKS[k].some(src => !this.failed[src]); },
   el(src) { let e = this.els[src];
     if (!e) { e = new Audio(); e.preload = 'auto'; e.src = src; e.volume = 0;
@@ -345,6 +346,7 @@ const tracks = {
     if (c && this.key && c.duration && isFinite(c.duration) && c.currentTime > c.duration - XFADE - 0.2) { this.fade(c, 0, XFADE); this.cur = null; const src = this.pick(this.key); if (src) this.start(src); }
   }
 };
+tracks.preload('hangar');
 function syncMusicBtn() { const b = document.getElementById('bMusic'); if (b) b.textContent = `Music ${music.enabled ? 'on' : 'off'} · M`; }
 
 /* ---------- VEGA, the ship AI ---------- */
