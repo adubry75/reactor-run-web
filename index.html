@@ -1,0 +1,1218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Reactor Run: fly in, blow the core, get out alive. A neon vector arcade prototype.">
+<title>Reactor Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Share+Tech+Mono&display=swap">
+<style>
+/* Layout: one full-bleed vector canvas; menu cards float over it like a cockpit display. Single dark arcade look by design. */
+:root{
+  --void:#04050b;
+  --line:#46f1ff;
+  --hot:#ff3d8b;
+  --core:#ffb627;
+  --loot:#8cff9e;
+  --ink:#d9f6ff;
+  --dim:#6f8d9c;
+  --glass:rgba(4,8,16,.88);
+  --font-display:"Michroma","Eurostile","Trebuchet MS",sans-serif;
+  --font-ui:"Share Tech Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--font-ui);font-size:15px;overflow:hidden}
+#game{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px)}
+#cv{display:block;width:100%;height:100%;touch-action:none}
+.panel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,5,11,.55)}
+.card{width:100%;max-width:560px;max-height:100%;overflow:auto;background:var(--glass);border:1px solid var(--line);
+  box-shadow:0 0 22px rgba(70,241,255,.28),inset 0 0 28px rgba(70,241,255,.06);padding:24px;display:flex;flex-direction:column;gap:16px}
+.eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+h1,h2{font-family:var(--font-display);font-weight:400;margin:0;text-wrap:balance;letter-spacing:.06em}
+h1{font-size:clamp(30px,7vw,46px);color:var(--line);text-shadow:0 0 14px rgba(70,241,255,.7)}
+h2{font-size:clamp(22px,5vw,30px)}
+h2.win{color:var(--loot);text-shadow:0 0 12px rgba(140,255,158,.6)}
+h2.lose{color:var(--hot);text-shadow:0 0 12px rgba(255,61,139,.6)}
+p{margin:0;line-height:1.5;max-width:60ch}
+.tag{color:var(--core)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}
+.keys kbd{font-family:var(--font-ui);color:var(--line);border:1px solid rgba(70,241,255,.5);padding:1px 6px;white-space:nowrap;justify-self:start}
+.keys span{color:var(--ink)}
+button{font-family:var(--font-ui);font-size:15px;color:var(--void);background:var(--line);border:0;padding:12px 16px;cursor:pointer;
+  letter-spacing:.08em;text-transform:uppercase;box-shadow:0 0 14px rgba(70,241,255,.5)}
+button:hover{filter:brightness(1.15)}
+button:focus-visible{outline:2px solid var(--core);outline-offset:3px}
+button:disabled{background:transparent;color:var(--dim);border:1px solid rgba(111,141,156,.5);box-shadow:none;cursor:default;filter:none}
+button.ghost{background:transparent;color:var(--dim);border:1px solid rgba(111,141,156,.5);box-shadow:none;font-size:12px;padding:8px 10px}
+.bank{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bank b{font-family:var(--font-display);font-weight:400;font-size:34px;color:var(--loot);text-shadow:0 0 12px rgba(140,255,158,.5);font-variant-numeric:tabular-nums}
+.ups{display:flex;flex-direction:column;gap:10px}
+.up{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;border-top:1px solid rgba(70,241,255,.18);padding-top:10px}
+.up .nm{color:var(--ink)}
+.up .ds{color:var(--dim);font-size:13px;grid-column:1}
+.up .pips{color:var(--core);letter-spacing:.2em;font-size:13px}
+.up button{grid-row:1 / span 3;grid-column:2;font-size:13px;padding:10px 12px;min-width:112px}
+.stats{color:var(--dim);font-size:13px;font-variant-numeric:tabular-nums}
+.rows{display:grid;grid-template-columns:1fr auto;gap:6px 16px;font-variant-numeric:tabular-nums}
+.rows .v{text-align:right;color:var(--ink)}
+.rows .k{color:var(--dim)}
+.rows .tot{border-top:1px solid rgba(70,241,255,.3);padding-top:8px;color:var(--loot)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.card.wide{max-width:760px}
+.ghostrow{display:flex;gap:8px;flex-wrap:wrap}
+.headrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.stamp{font-family:var(--font-display);font-size:13px;letter-spacing:.12em;color:var(--core);border:2px solid var(--core);padding:4px 10px;
+  transform:rotate(-6deg);box-shadow:0 0 14px rgba(255,182,39,.45);text-shadow:0 0 8px rgba(255,182,39,.7);animation:stamp .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes stamp{from{transform:rotate(-6deg) scale(2.4);opacity:0}to{transform:rotate(-6deg) scale(1);opacity:1}}
+.rows span{animation:rowin .25s ease-out}
+@keyframes rowin{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.vega{border-left:2px solid var(--line);padding-left:12px;color:var(--ink);font-size:14px}
+.vega b{color:var(--line);font-weight:400;letter-spacing:.1em;font-size:12px;display:block;margin-bottom:2px}
+@media (min-width:980px){#pHub,#pResult{justify-content:flex-end;padding-right:max(16px,4vw);background:linear-gradient(90deg,rgba(4,5,11,0) 35%,rgba(4,5,11,.7))}}
+@media (prefers-reduced-motion:reduce){.stamp,.rows span{animation:none}}
+h2.relay{color:var(--loot);text-shadow:0 0 12px rgba(140,255,158,.5)}
+.mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+button.mod{display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;text-transform:none;letter-spacing:0;
+  background:rgba(140,255,158,.06);color:var(--ink);border:1px solid var(--loot);box-shadow:0 0 12px rgba(140,255,158,.2);padding:16px;min-width:0}
+button.mod.cursed{background:rgba(255,61,139,.07);border-color:var(--hot);box-shadow:0 0 12px rgba(255,61,139,.25)}
+button.mod .mk{font-size:12px;color:var(--dim)}
+button.mod .mn{font-family:var(--font-display);font-size:15px;color:var(--loot)}
+button.mod.cursed .mn{color:var(--hot)}
+button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
+#touch{position:absolute;left:0;right:0;bottom:0;display:none;justify-content:space-between;padding:12px 16px;pointer-events:none}
+#touch .cl{display:flex;gap:8px;pointer-events:auto}
+#touch button{width:56px;height:56px;padding:0;background:rgba(70,241,255,.12);color:var(--line);border:1px solid rgba(70,241,255,.6);box-shadow:none;font-size:14px;touch-action:none;user-select:none;-webkit-user-select:none}
+@media (pointer:coarse){#touch{display:flex}}
+@media (prefers-reduced-motion:reduce){h1{text-shadow:none}}
+</style>
+<style>[hidden]{display:none!important}body{margin:0}</style>
+</head>
+<body>
+
+<div id="game">
+  <canvas id="cv" aria-label="Reactor Run game screen"></canvas>
+
+  <section class="panel" id="pTitle">
+    <div class="card">
+      <div class="eyebrow">Prototype · build 0.4</div>
+      <h1>REACTOR RUN</h1>
+      <p class="tag">Fly in. Blow the core. Get out alive.</p>
+      <p>Knock out the station's fighters to drop its docking shield, then fly into the bay. Find the reactor, arm it, and race the blast wave back to your ship. Corridors collapse from the core outward, so every detour costs you.</p>
+      <p>Don't linger. When the security sweep runs out, hunter drones come through the walls. Your jetpack only refuels when you're standing on something, and your crew bay starts with room for one survivor. Touch a glowing relay terminal to pick a power-up for the run.</p>
+      <div class="keys">
+        <kbd>← → / A D</kbd><span>Move</span>
+        <kbd>↑ / W</kbd><span>Thrust (jetpack in the station)</span>
+        <kbd>↓ / S</kbd><span>Dive (ship only)</span>
+        <kbd>Space</kbd><span>Fire</span>
+        <kbd>E</kbd><span>Arm the reactor</span>
+        <kbd>Q</kbd><span>Overclock: shorter fuse, ×2 salvage</span>
+        <kbd>P</kbd><span>Pause</span>
+        <kbd>M</kbd><span>Music on or off</span>
+      </div>
+      <div class="actions"><button id="bStart" type="button">Enter the hangar ⏎</button></div>
+    </div>
+  </section>
+
+  <section class="panel" id="pHub" hidden>
+    <div class="card">
+      <div class="eyebrow">Hangar</div>
+      <div class="bank"><b id="hSalvage">0</b><span class="stats">salvage banked</span></div>
+      <div class="ups" id="hUps"></div>
+      <div class="stats" id="hStats"></div>
+      <div class="actions">
+        <button id="bLaunch" type="button">Launch ⏎</button>
+        <span class="ghostrow"><button id="bMusic" class="ghost" type="button">Music on · M</button><button id="bReset" class="ghost" type="button">Reset progress</button></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="pResult" hidden>
+    <div class="card">
+      <div class="eyebrow" id="rEyebrow">Debrief</div>
+      <div class="headrow"><h2 id="rHead">ESCAPED</h2><span class="stamp" id="rStamp" hidden>NEW RECORD</span></div>
+      <p id="rReason" class="stats"></p>
+      <div class="rows" id="rRows"></div>
+      <p class="vega" id="rVega"></p>
+      <div class="actions"><button id="bBack" type="button">Back to hangar ⏎</button></div>
+    </div>
+  </section>
+
+  <section class="panel" id="pMod" hidden>
+    <div class="card wide">
+      <div class="eyebrow">Relay terminal</div>
+      <h2 class="relay">Choose a power-up</h2>
+      <p class="stats" id="mHint"></p>
+      <div class="mods" id="mChoices"></div>
+    </div>
+  </section>
+
+  <div id="touch" aria-hidden="true">
+    <div class="cl"><button data-k="left">◀</button><button data-k="down">▼</button><button data-k="right">▶</button></div>
+    <div class="cl"><button data-k="act">E</button><button data-k="alt">Q</button><button data-k="fire">FIRE</button><button data-k="up">▲</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const cvs = document.getElementById('cv'), ctx = cvs.getContext('2d');
+const C = { line:'#46f1ff', hot:'#ff3d8b', core:'#ffb627', loot:'#8cff9e', ink:'#d9f6ff', dim:'#6f8d9c', red:'#ff2a3a', void:'#04050b' };
+const FONT_UI = '"Share Tech Mono", ui-monospace, Menlo, monospace';
+const FONT_DISP = '"Michroma", "Trebuchet MS", sans-serif';
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rand = (a, b) => a + Math.random() * (b - a);
+
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  const r = cvs.getBoundingClientRect();
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height;
+  cvs.width = Math.max(1, Math.round(W * DPR)); cvs.height = Math.max(1, Math.round(H * DPR));
+}
+addEventListener('resize', resize); resize();
+
+/* ---------- save (per-browser convenience) ---------- */
+const SAVE_KEY = 'reactor-run-save-v1';
+const freshSave = () => ({ salvage: 0, up: { shield: 0, fuel: 0, thrust: 0, fuse: 0, crew: 0, scan: 0 }, runs: 0, escapes: 0, best: 0, hints: {}, crewTotal: 0, bestLeft: null, music: true });
+let save = freshSave();
+try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.up) save = Object.assign(freshSave(), s, { up: Object.assign(freshSave().up, s.up), hints: Object.assign({}, s.hints || {}) }); } catch (e) {}
+function hintOnce(key) { if (save.hints[key]) return false; save.hints[key] = 1; persist(); return true; }
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+const stats = () => ({ maxShield: 3 + save.up.shield, thrustMul: 1 + 0.08 * save.up.thrust, fuseBonus: 1.5 * save.up.fuse,
+  fuel: 2.4 + 0.5 * save.up.fuel, crewCap: 1 + save.up.crew, scan: save.up.scan });
+const tier = () => save.escapes; // difficulty driver
+function stationSize() { const e = tier(); return { cols: 4 + Math.min(4, Math.floor(e / 2)), rows: 3 + Math.min(3, Math.floor(e / 3)) }; }
+const pace = () => Math.max(0.55, 1 - tier() * 0.04); // multiplies enemy fire cooldowns
+
+/* ---------- input ---------- */
+const keys = new Set(), pressed = new Set();
+const KEYMAP = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
+  Space:'fire', KeyJ:'fire', KeyE:'act', KeyQ:'alt', Enter:'ok', NumpadEnter:'ok', KeyP:'pause', Escape:'pause', Digit1:'u1', Digit2:'u2', Digit3:'u3', Digit4:'u4', Digit5:'u5', Digit6:'u6', KeyM:'music' };
+addEventListener('keydown', e => {
+  const k = KEYMAP[e.code]; if (!k) return;
+  if (e.target && e.target.tagName === 'BUTTON' && (k === 'ok' || k === 'fire')) e.preventDefault();
+  else e.preventDefault();
+  if (!keys.has(k)) pressed.add(k); keys.add(k); audio.init();
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
+addEventListener('blur', () => keys.clear());
+const down = k => keys.has(k), hit = k => pressed.has(k);
+document.querySelectorAll('#touch button').forEach(b => {
+  const k = b.dataset.k;
+  const on = e => { e.preventDefault(); audio.init(); if (!keys.has(k)) pressed.add(k); keys.add(k); };
+  const off = e => { e.preventDefault(); keys.delete(k); };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
+  b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+});
+cvs.addEventListener('pointerdown', () => audio.init());
+
+/* ---------- audio ---------- */
+const audio = {
+  a: null, m: null,
+  init() { if (this.a) return; try { const A = window.AudioContext || window.webkitAudioContext; this.a = new A(); this.m = this.a.createGain(); this.m.gain.value = 0.22; this.m.connect(this.a.destination); music.start(); } catch (e) { this.a = null; } },
+  tone(f, d, type = 'square', v = 0.3, slide = 0) {
+    const a = this.a; if (!a) return; const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + d);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d); o.connect(g); g.connect(this.m); o.start(t); o.stop(t + d + 0.02);
+  },
+  noise(d, v = 0.4, lp = 1200) {
+    const a = this.a; if (!a) return; const n = Math.floor(a.sampleRate * d), b = a.createBuffer(1, n, a.sampleRate), ch = b.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = a.createBufferSource(); s.buffer = b; const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp;
+    const g = a.createGain(); g.gain.value = v; s.connect(f); f.connect(g); g.connect(this.m); s.start();
+  }
+};
+const sfx = {
+  shoot: () => audio.tone(880, 0.07, 'square', 0.08, 0.5),
+  boom: () => { audio.noise(0.6, 0.6, 800); audio.tone(110, 0.5, 'sawtooth', 0.2, 0.3); },
+  pop: () => { audio.noise(0.2, 0.3, 1600); },
+  pick: () => { audio.tone(660, 0.07, 'triangle', 0.25); setTimeout(() => audio.tone(990, 0.1, 'triangle', 0.25), 60); },
+  hurt: () => audio.tone(220, 0.25, 'sawtooth', 0.3, 0.4),
+  zap: () => audio.tone(1400, 0.12, 'sawtooth', 0.12, 0.3),
+  beep: p => audio.tone(p, 0.08, 'square', 0.14),
+  arm: () => { audio.tone(160, 0.8, 'sawtooth', 0.3, 5); audio.noise(0.4, 0.3, 600); },
+  shieldDown: () => { [880, 660, 440].forEach((f, i) => setTimeout(() => audio.tone(f, 0.12, 'triangle', 0.25), i * 90)); },
+  win: () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => audio.tone(f, 0.18, 'triangle', 0.3), i * 90)); }
+};
+
+/* ---------- adaptive music (procedural synthwave, A minor) ---------- */
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const CHORDS = [{ b: 45, t: [57, 60, 64] }, { b: 41, t: [53, 57, 60] }, { b: 38, t: [50, 53, 57] }, { b: 40, t: [52, 56, 59] }];
+const BPM = { hangar: 84, explore: 100, fight: 112, lockdown: 122, countdown: 150 };
+const MUSIC_VOL = 0.13;
+const music = {
+  g: null, noise: null, state: null, want: 'hangar', step: 0, next: 0, enabled: save.music !== false,
+  start() {
+    const a = audio.a; if (!a || this.g) return;
+    this.g = a.createGain(); this.g.gain.value = this.enabled ? MUSIC_VOL : 0; this.g.connect(a.destination);
+    this.noise = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = this.noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.next = a.currentTime + 0.1; setInterval(() => this.tick(), 25);
+    tracks.preload('hangar'); const w = this.want; this.want = null; tracks.key = null; this.set(w || 'hangar');
+  },
+  set(s) { tracks.set(s); this.want = s && !tracks.has(s) ? s : null; },
+  toggle() { this.enabled = !this.enabled; save.music = this.enabled; persist(); if (this.g) this.g.gain.setTargetAtTime(this.enabled ? MUSIC_VOL : 0, audio.a.currentTime, 0.1); tracks.retarget(); syncMusicBtn(); },
+  tick() {
+    const a = audio.a; if (!a) return;
+    if (a.currentTime > this.next + 0.4) this.next = a.currentTime + 0.05;
+    while (this.next < a.currentTime + 0.12) {
+      if (this.want !== this.state && (this.want === null || this.step % 4 === 0)) this.state = this.want;
+      const st = this.state, sp = st ? 60 / BPM[st] / 4 : 0.125;
+      if (st && this.enabled) this.play(st, this.step, this.next, sp);
+      this.next += sp; this.step++;
+    }
+  },
+  play(st, s, t, sp) {
+    const bar = Math.floor(s / 16) % 4, i = s % 16, ch = CHORDS[bar];
+    if (st === 'hangar') {
+      if (i === 0) this.pad(ch.t, t, sp * 16, 0.045);
+      if (i === 0 || i === 10) this.bass(ch.b, t, sp * 6, 0.15);
+      if (i % 4 === 2 && Math.random() < 0.55) this.pluck(ch.t[(s >> 2) % 3] + 12, t, 0.045);
+    } else if (st === 'explore' || st === 'fight') {
+      if (i === 0) this.pad(ch.t, t, sp * 16, 0.028);
+      if (i % 2 === 0) this.bass(ch.b + (i % 8 === 6 ? 12 : 0), t, sp * 1.6, 0.14);
+      const ap = [0, 3, 6, 10, 12].indexOf(i); if (ap >= 0) this.pluck(ch.t[[0, 1, 2, 1, 2].at(ap)] + 12, t, 0.045);
+      if (i % 4 === 2) this.hat(t, 0.03);
+      if (st === 'explore' ? (i === 0 || i === 8) : i % 4 === 0) this.kick(t, st === 'explore' ? 0.28 : 0.42);
+      if (st === 'fight' && (i === 4 || i === 12)) this.snare(t, 0.14);
+    } else if (st === 'lockdown') {
+      this.bass(ch.b + (i % 2 ? 12 : 0), t, sp * 0.9, 0.12);
+      if (i % 4 === 0) this.kick(t, 0.45);
+      if (i === 4 || i === 12) this.snare(t, 0.18);
+      if (i % 2 === 0) this.hat(t, 0.04);
+      if (i === 0 || i === 8) this.lead(bar % 2 ? 76 : 75, t, sp * 6, 0.03);
+    } else if (st === 'countdown') {
+      this.bass(ch.b + (i % 2 ? 12 : 0), t, sp * 0.9, 0.14);
+      this.pluck(ch.t[[0, 1, 2, 1].at(i % 4)] + 12 + (i >= 8 ? 12 : 0), t, 0.04);
+      if (i % 4 === 0) this.kick(t, 0.5);
+      if (i === 4 || i === 12) this.snare(t, 0.2);
+      this.hat(t, i % 2 ? 0.02 : 0.045);
+    }
+  },
+  osc(type, f, t, dur, vol, cutoff, attack = 0.005) {
+    const a = audio.a, o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
+    o.type = type; o.frequency.setValueAtTime(f, t); lp.type = 'lowpass'; lp.frequency.value = cutoff;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); lp.connect(g); g.connect(this.g); o.start(t); o.stop(t + dur + 0.05); return o;
+  },
+  bass(m, t, d, v) { this.osc('sawtooth', mtof(m), t, d, v, 420); },
+  pluck(m, t, v) { this.osc('square', mtof(m), t, 0.16, v, 2200); },
+  pad(notes, t, d, v) { for (const m of notes) for (const det of [-7, 7]) this.osc('sawtooth', mtof(m), t, d, v, 900, d * 0.3).detune.value = det; },
+  lead(m, t, d, v) { this.osc('sawtooth', mtof(m), t, d, v, 1800, 0.02); },
+  kick(t, v) { const a = audio.a, o = a.createOscillator(), g = a.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25); o.connect(g); g.connect(this.g); o.start(t); o.stop(t + 0.3); },
+  nz(t, v, d, type, f) { const a = audio.a, s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain(); s.buffer = this.noise; fl.type = type; fl.frequency.value = f;
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); s.connect(fl); fl.connect(g); g.connect(this.g); s.start(t, Math.random() * 0.5); s.stop(t + d + 0.02); },
+  hat(t, v) { this.nz(t, v, 0.04, 'highpass', 7000); },
+  snare(t, v) { this.nz(t, v, 0.16, 'bandpass', 1800); },
+  sting(win) { const a = audio.a; if (!a || !this.g || !this.enabled) return; const t = a.currentTime + 0.05;
+    if (win) [57, 61, 64, 69, 73].forEach((m, k) => this.osc('sawtooth', mtof(m), t + k * 0.09, 1.4 - k * 0.12, 0.07, 2600));
+    else { const o = this.osc('sawtooth', mtof(45), t, 2.2, 0.12, 900); o.frequency.exponentialRampToValueAtTime(mtof(21), t + 2); this.nz(t, 0.25, 1.5, 'lowpass', 600); } }
+};
+/* Suno soundtrack: one file per game state, A/B takes alternate, crossfades between states. Synth above is the fallback. */
+const TRACKS = { hangar: ['music/hangar-a.mp3', 'music/hangar-b.mp3'], explore: ['music/explore-a.mp3', 'music/explore-b.mp3'],
+  lockdown: ['music/lockdown-a.mp3', 'music/lockdown-b.mp3'], countdown: ['music/countdown-a.mp3'] };
+const STATE_TRACK = { hangar: 'hangar', fight: 'lockdown', explore: 'explore', lockdown: 'lockdown', countdown: 'countdown' };
+const TRACK_VOL = 0.6, XFADE = 1.4;
+const tracks = {
+  els: {}, failed: {}, take: {}, cur: null, key: null, fades: new Map(),
+  has(state) { const k = STATE_TRACK[state]; return !!k && TRACKS[k].some(src => !this.failed[src]); },
+  el(src) { let e = this.els[src];
+    if (!e) { e = new Audio(); e.preload = 'auto'; e.src = src; e.volume = 0;
+      e.addEventListener('error', () => { this.failed[src] = true; if (this.cur === e) { this.cur = null; const k = this.key; this.key = null; music.want = null; if (k) music.set(Object.keys(STATE_TRACK).find(st => STATE_TRACK[st] === k)); } });
+      this.els[src] = e; }
+    return e; },
+  preload(...keys) { for (const k of keys) for (const src of TRACKS[k]) this.el(src); },
+  pick(k) { const list = TRACKS[k].filter(src => !this.failed[src]); if (!list.length) return null; this.take[k] = ((this.take[k] ?? -1) + 1) % list.length; return list[this.take[k]]; },
+  fade(e, to, secs) { this.fades.set(e, { from: e.volume, to, t: 0, secs }); },
+  start(src) { const e = this.el(src); e.currentTime = 0; e.volume = 0; const pr = e.play(); if (pr) pr.catch(() => {}); this.fade(e, music.enabled ? TRACK_VOL : 0, XFADE); this.cur = e; },
+  set(state) {
+    const k = state ? STATE_TRACK[state] : null; if (k === this.key) return;
+    if (k && !this.has(state)) return;
+    if (this.cur) this.fade(this.cur, 0, k ? XFADE : 0.6);
+    this.key = k; this.cur = null;
+    if (k && audio.a) { const src = this.pick(k); if (src) this.start(src); }
+  },
+  retarget() { if (this.cur) this.fade(this.cur, music.enabled ? TRACK_VOL : 0, 0.3); },
+  update(dt) {
+    for (const [e, f] of this.fades) { f.t += dt; const k = Math.min(1, f.t / f.secs); e.volume = clamp(f.from + (f.to - f.from) * k, 0, 1);
+      if (k >= 1) { this.fades.delete(e); if (f.to === 0) e.pause(); } }
+    const c = this.cur; // near the end of a take, crossfade into the next take
+    if (c && this.key && c.duration && isFinite(c.duration) && c.currentTime > c.duration - XFADE - 0.2) { this.fade(c, 0, XFADE); this.cur = null; const src = this.pick(this.key); if (src) this.start(src); }
+  }
+};
+function syncMusicBtn() { const b = document.getElementById('bMusic'); if (b) b.textContent = `Music ${music.enabled ? 'on' : 'off'} · M`; }
+
+/* ---------- VEGA, the ship AI ---------- */
+const LINES = {
+  runStart: ["Station ahead. Try not to die, I just finished calibrating you.", "Another reactor, another terrible idea. Love it.", "Fighters inbound. Shoot the pointy ones."],
+  shieldDown: ["Shield's down. Door's open. Manners optional.", "Bay is clear. Park it, hotshot."],
+  dock: ["Docked. Find the reactor. I'll keep the engine warm.", "Smells like trouble in there. And ozone.", "Security never sleeps. Neither do I. Move."],
+  crew: ["Survivor aboard. They say thanks. I say hurry.", "Another passenger. I'm charging them for snacks.", "Rescue logged. Your hero rating went up 2%."],
+  crewFull: ["Bay's full. Leave them a nice note.", "No room. Upgrade the crew bay, hero."],
+  reactorFound: ["That's the core. Big, glowy, extremely angry.", "Reactor in sight. Do the thing."],
+  arm: ["Fuse is lit. RUN.", "Oh, we're doing this. Go go go!", "Countdown started. My circuits are sweating."],
+  overclock: ["Overclocked?! You absolute legend. Or idiot. RUN.", "Double salvage, half the time. Respect. RUN."],
+  lockdown: ["Security's awake. Drones go through walls. You don't.", "Lockdown. Should've hurried."],
+  lowShield: ["Hull integrity is... let's call it vibes.", "One more hit and I'm writing your eulogy."],
+  lowTime: ["FIVE SECONDS. NO PRESSURE.", "Hatch is open! Legs are not optional!"],
+  cursed: ["Cursed tech. I love it. I hate it. I love it.", "That module is screaming. Totally normal."],
+  mod: ["Ooh, shiny. Install complete.", "Upgrade accepted. You're 12% cooler."],
+  fuel: ["Tank's dry. Find a floor.", "No fuel. Gravity wins this round."],
+  escapeClose: ["Point. Three. Seconds. I need a minute.", "I aged a decade. Do it again.", "That wasn't a margin. That was a rounding error."],
+  escape: ["Clean exit. The station didn't make it.", "And that's how you leave a party.", "Boom. Salvage secured."],
+  death: ["Signal lost. Recovering what I can.", "Salvage drone is sweeping for scraps. Again.", "Well. That was educational."],
+  buy: ["Upgrade installed. I'd hug you if I had arms.", "Shiny. Try not to scratch it.", "Installed. Your odds went from bad to less bad."],
+  hangar: ["Hangar's quiet. Too quiet. Let's go blow something up.", "Crew is restless. So am I.", "Ready when you are, pilot."],
+  poor: ["Salvage is thin. Greed is a virtue out there.", "We're broke. Grab a crate or two next time."]
+};
+let comm = null, commCD = 0;
+const pickLine = k => LINES[k][(Math.random() * LINES[k].length) | 0];
+function say(key, force = false) { if (!LINES[key] || (!force && commCD > 0)) return; comm = { text: pickLine(key), t: 0, life: 4.4, shown: 0 }; commCD = 3; }
+function wrapText(text, maxW) { const words = text.split(' '), lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines; }
+function drawComm() {
+  if (!comm) return;
+  const a = Math.min(1, comm.t * 5, (comm.life - comm.t) * 2), w = Math.min(400, W - 32), coarse = matchMedia('(pointer:coarse)').matches;
+  ctx.save(); ctx.globalAlpha = a; ctx.font = `14px ${FONT_UI}`;
+  const lines = wrapText(comm.text.slice(0, Math.floor(comm.t * 48)), w - 76), h = 34 + Math.max(1, lines.length) * 18;
+  const x = 16, y = H - 16 - h - (coarse ? 84 : 0);
+  ctx.fillStyle = 'rgba(4,8,16,0.85)'; ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.shadowColor = C.line; ctx.shadowBlur = 10; ctx.strokeRect(x + 0.5, y + 0.5, w, h); ctx.shadowBlur = 0;
+  ctx.save(); ctx.translate(x + 30, y + h / 2); glow(C.line, 10, 1.5); poly(6, 15, Math.PI / 6); ctx.beginPath(); ctx.arc(0, 0, 4 + Math.sin(clock * 9) * 1.5, 0, 7); ctx.stroke(); ctx.restore();
+  ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.fillStyle = C.dim; ctx.font = `11px ${FONT_UI}`; ctx.fillText('VEGA · SHIP AI', x + 60, y + 18);
+  ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.ink; lines.forEach((ln, i) => ctx.fillText(ln, x + 60, y + 38 + i * 18));
+  ctx.restore();
+}
+
+/* ---------- fx ---------- */
+let parts = [], texts = [], shake = 0, flash = 0, banner = null;
+function showBanner(text, col, sub = '', dur = 2.6) { banner = { text, col, sub, t: 0, dur }; }
+function drawBanner() {
+  if (!banner) return;
+  const a = Math.min(1, banner.t * 6, (banner.dur - banner.t) * 2), y = H * 0.36, s = 1 + Math.max(0, 0.15 - banner.t) * 2;
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+  ctx.font = `${Math.round(Math.min(30, W / 16) * s)}px ${FONT_DISP}`;
+  const tw = Math.max(ctx.measureText(banner.text).width, banner.sub ? Math.min(W - 40, banner.sub.length * 9) : 0);
+  ctx.fillStyle = 'rgba(4,5,11,0.72)'; ctx.fillRect(W / 2 - tw / 2 - 24, y - 40, tw + 48, banner.sub ? 78 : 56);
+  ctx.strokeStyle = banner.col; ctx.lineWidth = 1; ctx.shadowColor = banner.col; ctx.shadowBlur = 12;
+  ctx.strokeRect(W / 2 - tw / 2 - 24 + 0.5, y - 40 + 0.5, tw + 48, banner.sub ? 78 : 56);
+  ctx.fillStyle = banner.col; ctx.fillText(banner.text, W / 2, y); ctx.shadowBlur = 0;
+  if (banner.sub) { ctx.font = `15px ${FONT_UI}`; ctx.fillStyle = C.ink; ctx.fillText(banner.sub, W / 2, y + 26); }
+  ctx.restore();
+}
+function burst(x, y, col, n = 16, spd = 220, life = 0.7) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, s = spd * (0.3 + Math.random());
+    parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: life * (0.5 + Math.random() * 0.5), max: life, col, len: 3 + Math.random() * 7 }); }
+}
+function floatText(x, y, text, col) { texts.push({ x, y, text, col, life: 1.3 }); }
+function updFx(dt) {
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.97; p.vy *= 0.97; p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const t of texts) { t.y -= 30 * dt; t.life -= dt; }
+  texts = texts.filter(t => t.life > 0);
+  shake = Math.max(0, shake - dt * 30); flash = Math.max(0, flash - dt * 2.5);
+  if (banner) { banner.t += dt; if (banner.t > banner.dur) banner = null; }
+  commCD = Math.max(0, commCD - dt);
+  if (comm) { comm.t += dt; const n = Math.min(comm.text.length, Math.floor(comm.t * 48));
+    if (n > comm.shown) { if (n % 3 === 0) audio.tone(1300 + Math.random() * 500, 0.02, 'square', 0.025); comm.shown = n; }
+    if (comm.t > comm.life) comm = null; }
+}
+function glow(col, blur = 10, lw = 2) { ctx.strokeStyle = col; ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = blur; ctx.lineWidth = lw; }
+function drawFx() {
+  ctx.shadowBlur = 0; ctx.lineWidth = 2;
+  if (parts.length > 400) parts.splice(0, parts.length - 400);
+  const groups = new Map();
+  for (const p of parts) { const key = p.col + '|' + Math.min(4, Math.floor(p.life / p.max * 5)); let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(p); }
+  for (const [key, g] of groups) { const [col, band] = key.split('|'); ctx.globalAlpha = (Number(band) + 1) / 5; ctx.strokeStyle = col; ctx.beginPath();
+    for (const p of g) { const sp = Math.hypot(p.vx, p.vy) || 1; ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx / sp * p.len, p.y - p.vy / sp * p.len); }
+    ctx.stroke(); }
+  ctx.globalAlpha = 1; ctx.textAlign = 'center'; ctx.font = `14px ${FONT_UI}`;
+  for (const t of texts) { ctx.globalAlpha = Math.min(1, t.life); ctx.fillStyle = t.col; ctx.fillText(t.text, t.x, t.y); }
+  ctx.globalAlpha = 1;
+}
+function poly(n, r, rot = 0) { ctx.beginPath(); for (let i = 0; i <= n; i++) { const a = rot + i / n * Math.PI * 2; i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.stroke(); }
+
+/* backdrop stars (screen space) */
+const stars = Array.from({ length: 160 }, () => ({ x: Math.random(), y: Math.random(), z: rand(0.2, 1) }));
+function drawStars(ox, oy) {
+  ctx.fillStyle = C.ink;
+  for (const s of stars) { const x = ((s.x * W - ox * s.z * 0.3) % W + W) % W, y = ((s.y * H - oy * s.z * 0.3) % H + H) % H;
+    ctx.globalAlpha = 0.25 + s.z * 0.5; ctx.fillRect(x, y, s.z * 2, s.z * 2); }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- state ---------- */
+let mode = 'title', paused = false, run = null, fly = null, M = null, clock = 0;
+const panels = { title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult') };
+function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name; const b = name && panels[name].querySelector('button'); if (b) b.focus({ preventScroll: true }); }
+
+function startRun() {
+  const st = stats();
+  run = { n: save.runs + 1, salvage: 0, shield: st.maxShield, maxShield: st.maxShield, crew: 0, mult: 1, inv: 0, over: null, kills: 0, mods: {}, modList: [] };
+  parts = []; texts = []; paused = false; banner = null;
+  showPanel(null); tracks.preload('lockdown', 'explore', 'countdown'); startFly();
+}
+function hurt(x, y) {
+  if (!run || run.inv > 0 || run.over) return;
+  run.shield--; run.inv = 1.2; shake = Math.max(shake, 12); sfx.hurt(); burst(x, y, C.hot, 14);
+  if (run.shield === 1) say('lowShield', true);
+  if (run.shield <= 0) die('Hull breached. Your suit shield gave out.', x, y);
+}
+function die(reason, x, y) {
+  if (run.over) return;
+  run.over = { win: false, reason, t: 0 }; shake = 22; flash = 0.8; sfx.boom(); music.set(null); music.sting(false);
+  burst(x, y, C.hot, 40, 320, 1.2); burst(x, y, C.core, 30, 200, 1);
+}
+
+/* ================= FLY PHASE ================= */
+const FW = 2150, FH = 700, SX = 1720, BAY0 = 300, BAY1 = 400;
+function startFly() {
+  mode = 'fly';
+  fly = { t: 0, s: { x: 140, y: 350, vx: 0, vy: 0 }, bul: [], eb: [], en: [], cd: 0, spawnT: 1.2,
+    need: Math.min(20, 5 + 2 * tier()), maxAlive: Math.min(7, 2 + Math.floor(tier() / 2)), killed: 0, cam: { x: 0, y: FH / 2 }, scale: 1, docking: 0, zap: 0, wasUp: true };
+  say('runStart', true);
+  showBanner(`DESTROY ${fly.need} FIGHTERS`, C.hot, hintOnce('fly') ? 'That drops the docking shield. Space to fire.' : '', 2.4);
+}
+const ETYPES = {
+  dart:    { hp: 1, r: 18, val: 5,  spd: [110, 170] },
+  diver:   { hp: 1, r: 18, val: 6,  spd: [150, 210] },
+  gunship: { hp: 3, r: 26, val: 12, spd: [60, 90] }
+};
+function pickEtype() {
+  const t = tier(), pool = ['dart', 'dart', 'dart'];
+  if (t >= 1) pool.push('diver', 'diver');
+  if (t >= 3) pool.push('gunship');
+  if (t >= 6) pool.push('gunship', 'diver');
+  return pool[(Math.random() * pool.length) | 0];
+}
+function updFly(dt) {
+  const f = fly, s = f.s, st = stats(); f.t += dt;
+  f.scale = Math.min(H / FH, W / 560); const viewW = W / f.scale;
+  if (run.over) { run.over.t += dt; if (run.over.t > 1.8 && !run.over.shown) { run.over.shown = 1; showResult(); } return; }
+  run.inv = Math.max(0, run.inv - dt); f.cd -= dt; f.zap = Math.max(0, f.zap - dt);
+  if (f.docking) { f.docking += dt; s.x += 260 * dt; s.y += (350 - s.y) * Math.min(1, dt * 4); if (f.docking > 0.9) startMaze(); return; }
+  const acc = 950 * st.thrustMul, max = 330 * st.thrustMul;
+  const ix = (down('right') ? 1 : 0) - (down('left') ? 1 : 0), iy = (down('down') ? 1 : 0) - (down('up') ? 1 : 0);
+  s.vx += ix * acc * dt; s.vy += iy * acc * dt;
+  if (!ix) s.vx -= s.vx * Math.min(1, dt * 2.4); if (!iy) s.vy -= s.vy * Math.min(1, dt * 2.4);
+  const sp = Math.hypot(s.vx, s.vy); if (sp > max) { s.vx *= max / sp; s.vy *= max / sp; }
+  s.x += s.vx * dt; s.y += s.vy * dt; s.y = clamp(s.y, 40, FH - 40); s.x = Math.max(40, s.x);
+  if (ix > 0 && Math.random() < 0.7) parts.push({ x: s.x - 14, y: s.y + rand(-3, 3), vx: -rand(120, 220), vy: rand(-20, 20), life: 0.25, max: 0.25, col: C.core, len: 6 });
+  const shieldUp = f.killed < f.need, inBay = s.y > BAY0 + 14 && s.y < BAY1 - 14;
+  if (s.x > SX - 18) {
+    if (shieldUp) { s.x = SX - 18; s.vx = -Math.abs(s.vx) * 0.6 - 80; if (!f.zap) { f.zap = 0.4; sfx.zap(); burst(SX - 6, s.y, C.hot, 10, 160); floatText(s.x, s.y - 26, 'SHIELD UP', C.hot); } }
+    else if (!inBay) { s.x = SX - 18; s.vx = -Math.abs(s.vx) * 0.4; }
+  }
+  if (!shieldUp && inBay && s.x > SX + 30) { f.docking = 0.01; floatText(s.x, s.y - 26, 'DOCKING', C.line); }
+  if (shieldUp !== f.wasUp) { f.wasUp = shieldUp; if (!shieldUp) { sfx.shieldDown(); showBanner('SHIELD DOWN', C.loot, 'Fly into the docking bay →', 2.4); say('shieldDown', true); } }
+  // fire
+  if (down('fire') && f.cd <= 0) { f.bul.push({ x: s.x + 20, y: s.y, vx: 760 }); f.cd = 0.15; sfx.shoot(); }
+  for (const b of f.bul) b.x += b.vx * dt; f.bul = f.bul.filter(b => b.x < Math.min(SX, f.cam.x + viewW + 40) && !b.dead);
+  // enemies
+  const alive = f.en.length, remaining = f.need - f.killed;
+  f.spawnT -= dt;
+  if (remaining > alive && alive < f.maxAlive && f.spawnT <= 0) {
+    const x = Math.min(f.cam.x + viewW + 60, SX - 50), y = rand(90, FH - 90), type = pickEtype(), d = ETYPES[type];
+    f.en.push({ type, hp: d.hp, x, y, by: y, vx: -rand(d.spd[0], d.spd[1]), ph: rand(0, 6), fire: rand(1, 2.2) }); f.spawnT = rand(0.6, 1.4) * pace();
+    if (x < f.cam.x + viewW) burst(x, y, C.hot, 8, 120, 0.4);
+  }
+  for (const e of f.en) {
+    const d = ETYPES[e.type];
+    e.x += e.vx * dt;
+    if (e.type === 'diver') { e.by += clamp(s.y - e.by, -1, 1) * 120 * dt; e.y = e.by + Math.sin(f.t * 5 + e.ph) * 14; }
+    else e.y = e.by + Math.sin(f.t * (e.type === 'gunship' ? 1 : 2) + e.ph) * (e.type === 'gunship' ? 30 : 60);
+    if (e.x < f.cam.x - 80) { e.x = Math.min(f.cam.x + viewW + 60, SX - 50); e.by = rand(90, FH - 90); }
+    e.fire -= dt;
+    if (e.fire <= 0 && e.x < f.cam.x + viewW && e.x > f.cam.x) {
+      const a = Math.atan2(s.y - e.y, s.x - e.x), spread = e.type === 'gunship' ? [-0.25, 0, 0.25] : [0];
+      for (const o of spread) f.eb.push({ x: e.x, y: e.y, vx: Math.cos(a + o) * 240, vy: Math.sin(a + o) * 240, life: 4 });
+      e.fire = rand(1.4, 2.6) * pace() * (e.type === 'gunship' ? 1.3 : 1); audio.tone(300, 0.06, 'square', 0.06); }
+    for (const b of f.bul) if (!b.dead && Math.hypot(b.x - e.x, b.y - e.y) < d.r) { b.dead = true; e.hp--; burst(b.x, b.y, C.hot, 5, 100, 0.25); if (e.hp <= 0) { e.dead = true; break; } }
+    if (!e.dead && Math.hypot(s.x - e.x, s.y - e.y) < d.r + 6) { e.dead = true; hurt(s.x, s.y); }
+    if (e.dead) { f.killed++; run.salvage += d.val; run.kills++; burst(e.x, e.y, C.hot, e.type === 'gunship' ? 36 : 22, 260); floatText(e.x, e.y - 18, '+' + d.val, C.loot); shake = Math.max(shake, e.type === 'gunship' ? 9 : 5); sfx.pop(); }
+  }
+  f.en = f.en.filter(e => !e.dead);
+  for (const b of f.eb) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (Math.hypot(b.x - s.x, b.y - s.y) < 12) { b.life = 0; hurt(s.x, s.y); } }
+  f.eb = f.eb.filter(b => b.life > 0);
+  f.cam.x = clamp(s.x - viewW * 0.35, 0, Math.max(0, FW - viewW));
+}
+function drawShip(x, y, scale = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale); glow(C.line, 12);
+  ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(-14, -12); ctx.lineTo(-8, 0); ctx.lineTo(-14, 12); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -3); ctx.lineTo(12, 0); ctx.lineTo(6, 3); ctx.stroke(); ctx.restore();
+}
+function drawFly() {
+  const f = fly, s = f.s, sc = f.scale, viewH = H / sc;
+  drawStars(f.cam.x * sc, 0);
+  ctx.save(); ctx.translate(shake ? rand(-shake, shake) : 0, shake ? rand(-shake, shake) : 0);
+  ctx.scale(sc, sc); ctx.translate(-f.cam.x, (viewH - FH) / 2);
+  // station
+  glow(C.line, 14, 2);
+  ctx.beginPath();
+  ctx.moveTo(FW + 50, 60); ctx.lineTo(SX + 120, 60); ctx.lineTo(SX + 40, 140); ctx.lineTo(SX, 160); ctx.lineTo(SX, BAY0); ctx.lineTo(SX + 160, BAY0);
+  ctx.lineTo(SX + 160, BAY1); ctx.lineTo(SX, BAY1); ctx.lineTo(SX, FH - 160); ctx.lineTo(SX + 40, FH - 140); ctx.lineTo(SX + 120, FH - 60); ctx.lineTo(FW + 50, FH - 60); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(SX + 60 + i * 60, 100 + (i % 2) * 20); ctx.lineTo(SX + 60 + i * 60, BAY0 - 30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(SX + 60 + i * 60, BAY1 + 30); ctx.lineTo(SX + 60 + i * 60, FH - 100 - (i % 2) * 20); ctx.stroke(); }
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(SX + 20 + i * 36, BAY0 + 10); ctx.lineTo(SX + 20 + i * 36, BAY1 - 10); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  // reactor glow deep inside
+  ctx.save(); ctx.translate(SX + 300, FH / 2); glow(C.core, 18); poly(6, 26 + Math.sin(clock * 3) * 3, clock * 0.6); ctx.restore();
+  // shield
+  if (f.killed < f.need) { ctx.save(); glow(C.hot, 16, 2); ctx.globalAlpha = 0.5 + Math.sin(clock * 14) * 0.25; ctx.setLineDash([10, 8]); ctx.lineDashOffset = -clock * 60;
+    ctx.beginPath(); ctx.moveTo(SX - 8, 60); ctx.lineTo(SX - 8, FH - 60); ctx.stroke(); ctx.restore(); }
+  else { glow(C.loot, 10, 2); ctx.globalAlpha = 0.6 + Math.sin(clock * 6) * 0.4; ctx.beginPath(); ctx.moveTo(SX - 60, BAY0 + 50); ctx.lineTo(SX - 40, BAY0 + 40); ctx.lineTo(SX - 40, BAY0 + 60); ctx.closePath(); ctx.stroke(); ctx.globalAlpha = 1; }
+  // enemies
+  for (const e of f.en) { ctx.save(); ctx.translate(e.x, e.y); glow(C.hot, 12);
+    if (e.type === 'gunship') { ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-10, -14); ctx.lineTo(18, -14); ctx.lineTo(24, 0); ctx.lineTo(18, 14); ctx.lineTo(-10, 14); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-36, -6); ctx.moveTo(-26, 0); ctx.lineTo(-36, 6); ctx.stroke();
+      for (let i = 0; i < 3; i++) { ctx.globalAlpha = i < e.hp ? 1 : 0.25; ctx.strokeRect(-6 + i * 8, -4, 5, 8); } ctx.globalAlpha = 1; }
+    else if (e.type === 'diver') { glow(C.core, 12); ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(8, -10); ctx.lineTo(2, 0); ctx.lineTo(8, 10); ctx.closePath(); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(0, -9); ctx.lineTo(10, 0); ctx.lineTo(0, 9); ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(2, -9); ctx.lineTo(10, -16); ctx.moveTo(2, 9); ctx.lineTo(10, 16); ctx.stroke(); }
+    ctx.restore(); }
+  glow(C.line, 8); for (const b of f.bul) { ctx.beginPath(); ctx.moveTo(b.x - 12, b.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+  glow(C.hot, 8); for (const b of f.eb) { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.stroke(); }
+  if (!run.over && !(run.inv > 0 && Math.floor(clock * 20) % 2)) drawShip(s.x, s.y);
+  drawFx(); ctx.restore(); ctx.shadowBlur = 0;
+  // HUD
+  hudCommon();
+  ctx.textAlign = 'center'; ctx.font = `15px ${FONT_UI}`;
+  const left = f.need - f.killed;
+  if (left > 0) {
+    ctx.fillStyle = C.dim; ctx.fillText('DOCKING SHIELD UP · FIGHTERS DOWN', W / 2, 24);
+    ctx.font = `26px ${FONT_DISP}`; ctx.fillStyle = C.hot; ctx.shadowColor = C.hot; ctx.shadowBlur = 10;
+    ctx.fillText(`${f.killed} / ${f.need}`, W / 2, 56); ctx.shadowBlur = 0;
+    const pw = Math.min(14, (Math.min(W - 40, 360)) / f.need), x0 = W / 2 - pw * f.need / 2;
+    for (let i = 0; i < f.need; i++) { ctx.fillStyle = i < f.killed ? C.hot : 'rgba(255,61,139,0.22)'; ctx.fillRect(x0 + i * pw + 1, 66, pw - 3, 4); }
+  } else { ctx.fillStyle = C.loot; ctx.fillText('SHIELD DOWN · FLY INTO THE DOCKING BAY →', W / 2, 30); }
+}
+
+/* ================= STATION PHASE ================= */
+const T = 32, CW = 12, CH = 9;
+function solidAt(tx, ty) { if (tx < 0 || ty < 0 || tx >= M.tw || ty >= M.th) return 1; return M.solid[ty * M.tw + tx]; }
+function buildStation() {
+  const { cols, rows } = stationSize();
+  const n = cols * rows, idx = (x, y) => y * cols + x;
+  const links = Array.from({ length: n }, () => new Set());
+  const nb = i => { const x = i % cols, y = (i / cols) | 0, r = []; if (x > 0) r.push(i - 1); if (x < cols - 1) r.push(i + 1); if (y > 0) r.push(i - cols); if (y < rows - 1) r.push(i + cols); return r; };
+  const start = idx(0, rows - 1), seen = new Uint8Array(n), stack = [start]; seen[start] = 1;
+  while (stack.length) { const c = stack[stack.length - 1], o = nb(c).filter(j => !seen[j]); if (!o.length) { stack.pop(); continue; }
+    const j = o[(Math.random() * o.length) | 0]; links[c].add(j); links[j].add(c); seen[j] = 1; stack.push(j); }
+  for (let k = 0; k < Math.floor(n / 6); k++) { const c = (Math.random() * n) | 0, o = nb(c).filter(j => !links[c].has(j)); if (o.length) { const j = o[(Math.random() * o.length) | 0]; links[c].add(j); links[j].add(c); } }
+  const bfs = s => { const d = new Array(n).fill(-1); d[s] = 0; const q = [s]; while (q.length) { const c = q.shift(); for (const j of links[c]) if (d[j] < 0) { d[j] = d[c] + 1; q.push(j); } } return d; };
+  const dS = bfs(start); let reactor = start; for (let i = 0; i < n; i++) if (dS[i] > dS[reactor]) reactor = i;
+  const dR = bfs(reactor);
+  const tw = cols * CW + 1, th = rows * CH + 1, solid = new Uint8Array(tw * th).fill(1), set = (x, y, v) => { solid[y * tw + x] = v; };
+  for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+    for (let y = cy * CH + 1; y < cy * CH + CH; y++) for (let x = cx * CW + 1; x < cx * CW + CW; x++) set(x, y, 0);
+    const i = idx(cx, cy);
+    if (cx < cols - 1 && links[i].has(i + 1)) { const x = (cx + 1) * CW; for (let y = cy * CH + 4; y < cy * CH + CH; y++) set(x, y, 0); }
+    if (cy < rows - 1 && links[i].has(i + cols)) { const y = (cy + 1) * CH; for (let x = cx * CW + 4; x < cx * CW + 8; x++) set(x, y, 0); }
+  }
+  const cellX = c => (c % cols) * CW * T, cellY = c => ((c / cols) | 0) * CH * T, floorY = c => cellY(c) + CH * T;
+  // ledges
+  for (let i = 0; i < n; i++) { if (i === reactor || i === start || Math.random() > 0.6) continue;
+    const cx = i % cols, cy = (i / cols) | 0, x0 = cx * CW + (Math.random() < 0.5 ? 1 : 8), y = cy * CH + 5;
+    for (let x = x0; x < x0 + 3; x++) set(x, y, 1); }
+  const deg = i => links[i].size;
+  const deadEnds = []; for (let i = 0; i < n; i++) if (i !== start && i !== reactor && deg(i) === 1) deadEnds.push(i);
+  const crates = [], turrets = [];
+  const crateVal = () => Math.round(rand(14, 26) + save.escapes * 2);
+  for (const c of deadEnds) crates.push({ x: cellX(c) + 9 * T, y: floorY(c) - 20, w: 24, h: 20, v: crateVal() + 8, cell: c });
+  for (let i = 0; i < n; i++) if (i !== start && i !== reactor && deg(i) > 1 && Math.random() < 0.22) crates.push({ x: cellX(i) + 9 * T, y: floorY(i) - 20, w: 24, h: 20, v: crateVal(), cell: i });
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const crewCount = Math.min(4, 1 + Math.floor(n / 7));
+  const others = []; for (let i = 0; i < n; i++) if (i !== start && i !== reactor && !deadEnds.includes(i)) others.push(i);
+  const crewCells = shuffle(deadEnds.slice()).concat(shuffle(others)).slice(0, crewCount);
+  const crews = crewCells.map(c => ({ x: cellX(c) + 2.5 * T, y: floorY(c) - 22, w: 12, h: 22, state: 'waiting', cell: c, msgT: 0, face: 1 }));
+  const termCount = n >= 20 ? 2 : 1, termPool = shuffle(others.filter(c => !crewCells.includes(c)).concat(shuffle(deadEnds.filter(c => !crewCells.includes(c)))));
+  const terminals = termPool.slice(0, termCount).map(c => ({ x: cellX(c) + 6 * T - 14, y: cellY(c) + CH * T / 2 - 4, w: 28, h: 34, used: false, cell: c }));
+  const tChance = 0.3 + 0.06 * Math.min(8, tier());
+  for (let i = 0; i < n; i++) { if (i === start || dS[i] < 2 || Math.random() > tChance) continue;
+    const col = Math.random() < 0.5 ? 2.5 : 9.5; turrets.push({ x: cellX(i) + col * T, y: cellY(i) + T, hp: 3, cd: rand(1, 2), ang: Math.PI / 2, cell: i }); }
+  // pre-render walls
+  const off = document.createElement('canvas'); off.width = tw * T; off.height = th * T; const o = off.getContext('2d');
+  o.fillStyle = '#07101a';
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) if (solid[y * tw + x]) o.fillRect(x * T, y * T, T, T);
+  o.fillStyle = 'rgba(70,241,255,0.07)';
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) if (!solid[y * tw + x]) o.fillRect(x * T + T / 2 - 1, y * T + T / 2 - 1, 2, 2);
+  const S = (x, y) => (x < 0 || y < 0 || x >= tw || y >= th) ? 1 : solid[y * tw + x];
+  o.beginPath();
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) { if (!solid[y * tw + x]) continue;
+    if (!S(x - 1, y)) { o.moveTo(x * T, y * T); o.lineTo(x * T, (y + 1) * T); }
+    if (!S(x + 1, y)) { o.moveTo((x + 1) * T, y * T); o.lineTo((x + 1) * T, (y + 1) * T); }
+    if (!S(x, y - 1)) { o.moveTo(x * T, y * T); o.lineTo((x + 1) * T, y * T); }
+    if (!S(x, y + 1)) { o.moveTo(x * T, (y + 1) * T); o.lineTo((x + 1) * T, (y + 1) * T); } }
+  o.strokeStyle = C.line; o.lineWidth = 2; o.shadowColor = C.line; o.shadowBlur = 12; o.stroke(); o.shadowBlur = 0; o.stroke();
+  const shipR = { x: cellX(start) + T + 6, y: floorY(start) - 40, w: 84, h: 40 };
+  return { cols, rows, n, tw, th, solid, links, start, reactor, dR, D: dR[start], off, crates, crews, turrets, terminals,
+    cellX, cellY, ship: shipR, rx: cellX(reactor) + CW * T / 2, ry: cellY(reactor) + CH * T / 2 + T / 2,
+    collapsed: new Uint8Array(n), mapW: tw * T, mapH: th * T };
+}
+function startMaze() {
+  mode = 'maze'; flash = 0.6;
+  M = buildStation();
+  M.p = { x: M.ship.x + M.ship.w + 12, y: M.ship.y + 40 - 23, w: 14, h: 22, vx: 0, vy: 0, face: 1, onGround: false, thrust: false, fuel: stats().fuel, sputT: 0 };
+  M.carried = []; M.drones = []; M.lock = false; M.alert = 0; M.droneT = 0;
+  M.alertMax = Math.max(30, 35 + M.n * 1.5 - Math.min(15, tier() * 1.5));
+  M.picking = null; M.reactorHinted = false; M.warned = false; M.lastSec = -1;
+  say('dock', true);
+  const firstDock = hintOnce('dock');
+  showBanner('FIND THE REACTOR', C.core, firstDock ? 'Your jetpack refuels only when you land on something.' : '', firstDock ? 3.4 : 2);
+  M.t = 0; M.armed = false; M.armT = 0; M.fuse = 0; M.cl = 0; M.bul = []; M.tb = []; M.cd = 0; M.beepT = 0; M.prompt = '';
+  M.cam = { x: M.p.x, y: M.p.y }; M.scale = 1;
+}
+function moveBox(b, dt) {
+  b.x += b.vx * dt;
+  const y0 = Math.floor(b.y / T), y1 = Math.floor((b.y + b.h - 0.01) / T);
+  if (b.vx > 0) { const tx = Math.floor((b.x + b.w) / T); for (let ty = y0; ty <= y1; ty++) if (solidAt(tx, ty)) { b.x = tx * T - b.w - 0.01; b.vx = 0; break; } }
+  else if (b.vx < 0) { const tx = Math.floor(b.x / T); for (let ty = y0; ty <= y1; ty++) if (solidAt(tx, ty)) { b.x = (tx + 1) * T + 0.01; b.vx = 0; break; } }
+  b.y += b.vy * dt; b.onGround = false;
+  const x0 = Math.floor(b.x / T), x1 = Math.floor((b.x + b.w - 0.01) / T);
+  if (b.vy > 0) { const ty = Math.floor((b.y + b.h) / T); for (let tx = x0; tx <= x1; tx++) if (solidAt(tx, ty)) { b.y = ty * T - b.h - 0.01; b.vy = 0; b.onGround = true; break; } }
+  else if (b.vy < 0) { const ty = Math.floor(b.y / T); for (let tx = x0; tx <= x1; tx++) if (solidAt(tx, ty)) { b.y = (ty + 1) * T + 0.01; b.vy = 0; break; } }
+}
+const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+function los(x0, y0, x1, y1) { const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 10); for (let i = 1; i < n; i++) { const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n; if (solidAt(Math.floor(x / T), Math.floor(y / T))) return false; } return true; }
+function cellOf(x, y) { const cx = clamp(Math.floor(x / (CW * T)), 0, M.cols - 1), cy = clamp(Math.floor(y / (CH * T)), 0, M.rows - 1); return cy * M.cols + cx; }
+function fuseFor(oc) { return (6 + M.D * 2.6 + stats().fuseBonus) * (oc ? 0.65 : 1) * (run.mods.overcore ? 0.75 : 1); }
+function arm(oc) {
+  M.armed = true; M.armT = 0; M.fuse = fuseFor(oc); run.mult = oc ? 2 : 1; run.overclock = oc;
+  shake = 16; flash = 0.5; sfx.arm(); burst(M.rx, M.ry, C.core, 40, 300, 1); lockdown();
+  showBanner(oc ? 'OVERCLOCKED' : 'REACTOR ARMED', oc ? C.hot : C.core, oc ? '×2 salvage. Get back to your ship!' : 'Get back to your ship!', 2); say(oc ? 'overclock' : 'arm', true);
+}
+function lockdown() {
+  if (M.lock) return; M.lock = true; M.droneT = 1.5;
+  [520, 390, 520, 390].forEach((f, i) => setTimeout(() => audio.tone(f, 0.18, 'sawtooth', 0.18), i * 200));
+  if (!M.armed) { showBanner('LOCKDOWN', C.hot, 'Hunter drones incoming. They fly through walls.', 2.6); say('lockdown', true); }
+}
+/* relay terminals: pick 1 of 3 run-only mods */
+const MODS = [
+  { k: 'recycler', name: 'Fuel Recycler', desc: 'Your jetpack slowly refuels in the air.' },
+  { k: 'killclock', name: 'Kill Clock', desc: 'Kills during the countdown add 1.5s to the fuse.' },
+  { k: 'magnet', name: 'Salvage Magnet', desc: 'Nearby crates fly to you and are worth 25% more.' },
+  { k: 'rapid', name: 'Rapid Fire', desc: 'Fire twice as fast.' },
+  { k: 'spread', name: 'Spread Shot', desc: 'Fire three shots at once.' },
+  { k: 'plating', name: 'Emergency Plating', desc: '+1 shield pip for this run, and a full repair.' },
+  { k: 'ghost', name: 'Ghost Signal', desc: 'Hunter drones move 35% slower.' },
+  { k: 'harness', name: 'Crew Harness', desc: 'Crew you carry slow you half as much.' },
+  { k: 'jammer', name: 'Signal Jammer', desc: '+30s on the security sweep. Turrets fire slower.' },
+  { k: 'afterburner', name: 'Afterburner', desc: '+15% speed and lift.' },
+  { k: 'overcore', name: 'Unstable Core', desc: 'Fuse is 25% shorter, but salvage pays ×1.5.', cursed: true },
+  { k: 'desperate', name: 'Desperate Measures', desc: 'Lose 1 shield pip now. Unlimited jetpack fuel.', cursed: true }
+];
+const modPanel = document.getElementById('pMod'), modBox = document.getElementById('mChoices');
+function openTerminal(term) {
+  term.used = true;
+  const pool = MODS.filter(m => !run.mods[m.k] && !(m.k === 'desperate' && run.shield <= 1) && !(m.k === 'jammer' && M.lock && M.armed));
+  for (let i = pool.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const choices = pool.slice(0, 3); if (!choices.length) return;
+  M.picking = choices; sfx.pick();
+  modBox.innerHTML = '';
+  choices.forEach((m, i) => { const b = document.createElement('button'); b.type = 'button'; b.id = 'mod-' + i; b.className = 'mod' + (m.cursed ? ' cursed' : '');
+    b.innerHTML = `<span class="mk">${i + 1}</span><span class="mn">${m.name}</span><span class="md">${m.cursed ? 'Cursed · ' : ''}${m.desc}</span>`;
+    b.onclick = () => chooseMod(i); modBox.appendChild(b); });
+  document.getElementById('mHint').textContent = hintOnce('relay') ? 'Relay terminals offer power-ups that last for this run only. The station is frozen while you choose.' : 'Pick one. It lasts for this run only.';
+  modPanel.hidden = false; const f = modBox.querySelector('button'); if (f) f.focus({ preventScroll: true });
+}
+function chooseMod(i) {
+  const m = M.picking && M.picking[i]; if (!m) return;
+  run.mods[m.k] = true; run.modList.push(m.name); M.picking = null; modPanel.hidden = true;
+  if (m.k === 'plating') { run.maxShield++; run.shield = run.maxShield; }
+  if (m.k === 'jammer' && !M.lock) M.alertMax += 30;
+  if (m.k === 'desperate') { run.shield = Math.max(1, run.shield - 1); shake = 8; sfx.hurt(); }
+  showBanner(m.name.toUpperCase(), m.cursed ? C.hot : C.loot, m.desc, 2.2); sfx.win(); say(m.cursed ? 'cursed' : 'mod', true);
+}
+function updDrones(dt, pcx, pcy) {
+  if (!M.lock) { M.alert += dt; const left = M.alertMax - M.alert;
+    if (left <= 10 && !M.warned) { M.warned = true; showBanner('SECURITY SWEEP IN 10s', C.core, 'Hunter drones are coming. Find the reactor!', 2.6); }
+    if (left <= 10) { const s = Math.ceil(left); if (s !== M.lastSec) { M.lastSec = s; audio.tone(s <= 3 ? 880 : 660, 0.07, 'triangle', 0.15); } }
+    if (M.alert >= M.alertMax) lockdown(); }
+  if (M.lock) {
+    M.droneT -= dt;
+    const maxAlive = Math.min(6, 2 + Math.floor(tier() / 3));
+    if (M.droneT <= 0 && M.drones.length < maxAlive) {
+      const pc = cellOf(pcx, pcy), pcx0 = pc % M.cols, pcy0 = (pc / M.cols) | 0, pool = [];
+      for (let i = 0; i < M.n; i++) { const dx = Math.abs(i % M.cols - pcx0), dy = Math.abs(((i / M.cols) | 0) - pcy0);
+        if (dx + dy >= 2 && !M.collapsed[i]) pool.push(i); }
+      if (pool.length) { const c = pool[(Math.random() * pool.length) | 0], x = M.cellX(c) + CW * T / 2, y = M.cellY(c) + CH * T / 2;
+        M.drones.push({ x, y, vx: 0, vy: 0, hp: 2, ph: rand(0, 6) }); burst(x, y, C.hot, 12, 140, 0.5); }
+      M.droneT = Math.max(3.5, 9 - tier() * 0.4);
+    }
+  }
+  const spd = (70 + 6 * Math.min(10, tier())) * (run.mods.ghost ? 0.65 : 1);
+  for (const d of M.drones) {
+    const dx = pcx - d.x, dy = pcy - d.y, dist = Math.hypot(dx, dy) || 1, k = Math.min(1, dt * 1.8);
+    d.vx += (dx / dist * spd - d.vx) * k; d.vy += (dy / dist * spd - d.vy) * k;
+    d.x += d.vx * dt; d.y += d.vy * dt;
+    if (M.collapsed[cellOf(d.x, d.y)]) { d.hp = 0; burst(d.x, d.y, C.red, 10, 140, 0.4); continue; }
+    if (dist < 16) { d.hp = 0; burst(d.x, d.y, C.hot, 16, 200); hurt(pcx, pcy); continue; }
+    for (const b of M.bul) if (b.life > 0 && Math.hypot(b.x - d.x, b.y - d.y) < 15) { b.life = 0; d.hp--; burst(b.x, b.y, C.hot, 6, 120, 0.3);
+      if (d.hp <= 0) { run.salvage += 8; floatText(d.x, d.y - 16, '+8', C.loot); burst(d.x, d.y, C.hot, 22, 240); sfx.pop(); killClock(d.x, d.y); break; } }
+  }
+  M.drones = M.drones.filter(d => d.hp > 0);
+}
+function killClock(x, y) { if (M.armed && run.mods.killclock) { M.fuse += 1.5; floatText(x, y - 32, '+1.5s', C.core); } }
+function updMaze(dt) {
+  const p = M.p, st = stats();
+  const viewH = 520; M.scale = Math.min(H / viewH, W / 600);
+  if (M.picking) { for (let i = 0; i < 3; i++) if (hit('u' + (i + 1))) chooseMod(i); return; }
+  M.t += dt;
+  if (run.over) { run.over.t += dt;
+    if (run.over.win && run.over.t > 0.5 && !run.over.shown) { run.over.shown = 1; startOutro(); }
+    else if (!run.over.win && run.over.t > 1.8 && !run.over.shown) { run.over.shown = 1; showResult(); }
+    return; }
+  run.inv = Math.max(0, run.inv - dt); M.cd -= dt;
+  const tm = st.thrustMul * (1 - (run.mods.harness ? 0.04 : 0.08) * M.carried.length) * (run.mods.afterburner ? 1.15 : 1);
+  const ix = (down('right') ? 1 : 0) - (down('left') ? 1 : 0); if (ix) p.face = ix;
+  p.vx += ix * 1100 * tm * dt; if (!ix) p.vx -= p.vx * Math.min(1, dt * (p.onGround ? 12 : 2.5));
+  p.vx = clamp(p.vx, -230 * tm, 230 * tm);
+  p.vy += 420 * dt;
+  const wantUp = down('up'); p.thrust = wantUp && p.fuel > 0;
+  if (p.thrust) { p.vy -= 930 * tm * dt; if (!run.mods.desperate) p.fuel = Math.max(0, p.fuel - dt); }
+  if (p.onGround && !p.thrust) p.fuel = Math.min(st.fuel, p.fuel + dt * 1.6);
+  else if (run.mods.recycler && !p.thrust) p.fuel = Math.min(st.fuel, p.fuel + dt * 0.4);
+  if (p.fuel <= 0 && wantUp && !p.empty) { p.empty = true; showBanner('OUT OF FUEL', C.red, 'Land on any surface to refuel', 1.8); say('fuel'); }
+  if (p.fuel > 0.4) p.empty = false;
+  p.vy = clamp(p.vy, -270 * tm, 440);
+  moveBox(p, dt);
+  const pcx = p.x + p.w / 2, pcy = p.y + p.h / 2;
+  if (p.thrust && Math.random() < 0.7) parts.push({ x: pcx - p.face * 6, y: p.y + p.h - 6, vx: rand(-30, 30), vy: rand(150, 240), life: 0.22, max: 0.22, col: C.core, len: 5 });
+  p.sputT -= dt;
+  if (wantUp && !p.thrust && p.sputT <= 0) { p.sputT = 0.35; audio.tone(90, 0.08, 'square', 0.1); parts.push({ x: pcx - p.face * 6, y: p.y + p.h - 6, vx: rand(-20, 20), vy: 60, life: 0.3, max: 0.3, col: C.dim, len: 3 }); }
+  // shoot
+  if (down('fire') && M.cd <= 0) {
+    for (const vy of run.mods.spread ? [-110, 0, 110] : [0]) M.bul.push({ x: pcx + p.face * 10, y: p.y + 11, vx: p.face * 620, vy, life: 1.2 });
+    M.cd = run.mods.rapid ? 0.09 : 0.18; sfx.shoot(); }
+  for (const b of M.bul) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (solidAt(Math.floor(b.x / T), Math.floor(b.y / T))) { b.life = 0; burst(b.x, b.y, C.line, 4, 90, 0.25); }
+    for (const t of M.turrets) if (t.hp > 0 && Math.hypot(b.x - t.x, b.y - (t.y + 8)) < 16) { b.life = 0; t.hp--; burst(b.x, b.y, C.hot, 6, 120, 0.3);
+      if (t.hp <= 0) { run.salvage += 10; burst(t.x, t.y + 8, C.hot, 26, 240); floatText(t.x, t.y + 30, '+10', C.loot); sfx.pop(); shake = Math.max(shake, 6); killClock(t.x, t.y + 30); } } }
+  M.bul = M.bul.filter(b => b.life > 0);
+  // turrets
+  for (const t of M.turrets) { if (t.hp <= 0 || M.collapsed[t.cell]) continue;
+    const tx = t.x, ty = t.y + 10, d = Math.hypot(pcx - tx, pcy - ty);
+    if (d < 400 && los(tx, ty, pcx, pcy)) { const a = Math.atan2(pcy - ty, pcx - tx); t.ang += (a - t.ang) * Math.min(1, dt * 5); t.cd -= dt;
+      if (t.cd <= 0) { M.tb.push({ x: tx + Math.cos(t.ang) * 14, y: ty + Math.sin(t.ang) * 14, vx: Math.cos(t.ang) * 210, vy: Math.sin(t.ang) * 210, life: 3 }); t.cd = rand(1.3, 2.1) * pace() * (run.mods.jammer ? 1.4 : 1); audio.tone(320, 0.06, 'square', 0.06); } }
+    else t.cd = Math.max(t.cd, 0.6); }
+  for (const b of M.tb) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (solidAt(Math.floor(b.x / T), Math.floor(b.y / T))) b.life = 0;
+    else if (b.x > p.x - 2 && b.x < p.x + p.w + 2 && b.y > p.y - 2 && b.y < p.y + p.h + 2) { b.life = 0; hurt(pcx, pcy); } }
+  M.tb = M.tb.filter(b => b.life > 0);
+  // crates
+  if (run.mods.magnet) for (const c of M.crates) { if (c.got) continue; const dx = pcx - (c.x + 12), dy = pcy - (c.y + 10);
+    if (Math.hypot(dx, dy) < 130) { const k = Math.min(1, dt * 5); c.x += dx * k; c.y += dy * k; } }
+  for (const c of M.crates) if (!c.got && overlap(p, c)) { c.got = true; if (run.mods.magnet) c.v = Math.round(c.v * 1.25); run.salvage += c.v; burst(c.x + 12, c.y + 10, C.loot, 18, 180); floatText(c.x + 12, c.y - 10, `+${c.v}`, C.loot); sfx.pick(); }
+  // crew
+  for (const cr of M.crews) { cr.msgT = Math.max(0, cr.msgT - dt);
+    if (cr.state === 'waiting' && overlap(p, cr)) {
+      if (M.carried.length < st.crewCap) { cr.state = 'following'; M.carried.push(cr); sfx.pick(); floatText(cr.x, cr.y - 16, `CREW ${M.carried.length}/${st.crewCap} · SLOWER`, C.loot); say('crew'); }
+      else if (!cr.msgT) { cr.msgT = 2; say('crewFull');
+        if (hintOnce('crewfull')) showBanner('CREW BAY FULL', C.hot, 'Upgrade the Crew bay in the hangar for more slots', 3.2);
+        else floatText(cr.x, cr.y - 16, 'CREW BAY FULL', C.hot); } } }
+  M.carried.forEach((cr, i) => { const lead = i ? M.carried[i - 1] : p, k = Math.min(1, dt * 7); cr.face = p.face;
+    cr.x += (lead.x - p.face * 16 - cr.x) * k; cr.y += (lead.y - cr.y) * k; });
+  updDrones(dt, pcx, pcy); if (run.over) return;
+  // reactor
+  M.prompt = '';
+  const dr = Math.hypot(pcx - M.rx, pcy - M.ry);
+  if (!M.armed && dr < 260 && !M.reactorHinted) { M.reactorHinted = true; const first = hintOnce('reactor');
+    showBanner('REACTOR FOUND', C.core, first ? 'Fly up to it, then press E to arm, or Q to overclock for ×2 salvage' : '', first ? 3.8 : 1.6); say('reactorFound'); }
+  for (const tm of M.terminals) if (!tm.used && overlap(p, tm)) { openTerminal(tm); return; }
+  if (!M.armed && dr < 90) { M.prompt = 'reactor'; if (hit('act')) arm(false); else if (hit('alt')) arm(true); }
+  if (!M.armed && overlap(p, M.ship)) M.prompt = 'ship';
+  // countdown + blast wave
+  if (M.armed) {
+    M.armT += dt; const left = M.fuse - M.armT;
+    if (left < 5 && !M.saidLow) { M.saidLow = true; say('lowTime', true); }
+    M.beepT -= dt; if (M.beepT <= 0) { sfx.beep(420 + (1 - left / M.fuse) * 700); M.beepT = left < 5 ? 0.25 : left < 10 ? 0.5 : 1; }
+    M.cl = Math.max(0, (M.armT - 2) / (M.fuse - 2)) * (M.D + 0.5);
+    for (let i = 0; i < M.n; i++) if (!M.collapsed[i] && M.cl > M.dR[i] + 0.5) { M.collapsed[i] = 1;
+      const cx = M.cellX(i) + CW * T / 2, cy = M.cellY(i) + CH * T / 2; burst(cx, cy, C.red, 30, 380, 1); burst(cx, cy, C.core, 16, 220, 0.8);
+      const near = Math.hypot(cx - pcx, cy - pcy) < 900; if (near) { shake = Math.max(shake, 9); audio.noise(0.5, 0.35, 500); } }
+    if (M.collapsed[cellOf(pcx, pcy)]) { die('Caught in the blast wave. That corridor sealed before you got through.', pcx, pcy); return; }
+    if (left <= 0) { die('The reactor went critical with you still aboard.', pcx, pcy); return; }
+    if (overlap(p, M.ship)) { run.over = { win: true, t: 0, left }; sfx.win(); flash = 0.7; burst(M.ship.x + 40, M.ship.y + 20, C.line, 40, 300, 1); }
+  }
+  // camera
+  const vw = W / M.scale, vh = H / M.scale, k = Math.min(1, dt * 8);
+  M.cam.x += (pcx - M.cam.x) * k; M.cam.y += (pcy - M.cam.y) * k;
+  M.cam.x = M.mapW < vw ? M.mapW / 2 : clamp(M.cam.x, vw / 2, M.mapW - vw / 2);
+  M.cam.y = M.mapH < vh ? M.mapH / 2 : clamp(M.cam.y, vh / 2, M.mapH - vh / 2);
+}
+function drawReactor(x, y, armed) {
+  ctx.save(); ctx.translate(x, y);
+  const col = armed ? (Math.sin(clock * 22) > 0 ? C.red : '#ffffff') : C.core;
+  glow(col, 18, 2);
+  for (let k = 0; k < 3; k++) poly(6, 20 + k * 13, clock * (k % 2 ? -1 : 1) * (armed ? 3 : 0.6) + k);
+  ctx.beginPath(); ctx.arc(0, 0, 7 + Math.sin(clock * (armed ? 18 : 3)) * 3, 0, 7); ctx.stroke();
+  ctx.restore();
+}
+function drawAstronaut(p, col) {
+  const cx = p.x + p.w / 2, f = p.face || 1; glow(col, 10, 2);
+  ctx.beginPath(); ctx.arc(cx, p.y + 5, 5, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + f * 1, p.y + 4); ctx.lineTo(cx + f * 4, p.y + 4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, p.y + 10); ctx.lineTo(cx, p.y + 16);
+  ctx.moveTo(cx, p.y + 16); ctx.lineTo(cx - 4, p.y + 22); ctx.moveTo(cx, p.y + 16); ctx.lineTo(cx + 4, p.y + 22);
+  ctx.moveTo(cx, p.y + 12); ctx.lineTo(cx + f * 9, p.y + 12); ctx.stroke();
+  ctx.strokeRect(cx - f * 4 - (f > 0 ? 4 : 0), p.y + 9, 4, 8);
+}
+function drawMaze() {
+  const sc = M.scale, p = M.p;
+  drawStars(M.cam.x * sc * 0.4, M.cam.y * sc * 0.4);
+  if (M.armed) { ctx.fillStyle = C.red; ctx.globalAlpha = 0.05 + 0.05 * Math.sin(clock * 10); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  ctx.save();
+  ctx.translate(W / 2 + (shake ? rand(-shake, shake) : 0), H / 2 + (shake ? rand(-shake, shake) : 0));
+  ctx.scale(sc, sc); ctx.translate(-M.cam.x, -M.cam.y);
+  ctx.shadowBlur = 0; ctx.drawImage(M.off, 0, 0);
+  // blast wave cells
+  if (M.armed) for (let i = 0; i < M.n; i++) {
+    const s = M.cl - M.dR[i]; if (s <= 0) continue;
+    const x = M.cellX(i), y = M.cellY(i), w = CW * T, h = CH * T;
+    if (M.collapsed[i]) { ctx.fillStyle = C.red; ctx.globalAlpha = 0.16; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 0.8; glow(C.red, 10, 1.5);
+      ctx.beginPath(); for (let j = 0; j < 6; j++) { const yy = y + rand(0, h); ctx.moveTo(x + rand(0, w * 0.3), yy); ctx.lineTo(x + rand(w * 0.3, w * 0.6), yy + rand(-30, 30)); ctx.lineTo(x + rand(w * 0.6, w), yy + rand(-30, 30)); } ctx.stroke(); ctx.globalAlpha = 1; }
+    else if (Math.floor(clock * 8) % 2) { glow(C.red, 12, 3); ctx.globalAlpha = 0.8; ctx.strokeRect(x + T + 4, y + T + 4, w - 2 * T - 8, h - 2 * T - 8); ctx.globalAlpha = 1; }
+  }
+  // ship
+  const sh = M.ship; glow(C.line, 12, 2);
+  ctx.beginPath(); ctx.moveTo(sh.x + 4, sh.y + 40); ctx.lineTo(sh.x + 14, sh.y + 24); ctx.lineTo(sh.x + 30, sh.y + 6); ctx.lineTo(sh.x + 62, sh.y + 6); ctx.lineTo(sh.x + 80, sh.y + 24); ctx.lineTo(sh.x + 72, sh.y + 40);
+  ctx.moveTo(sh.x + 14, sh.y + 24); ctx.lineTo(sh.x + 80, sh.y + 24); ctx.moveTo(sh.x + 40, sh.y + 6); ctx.lineTo(sh.x + 46, sh.y - 6); ctx.stroke();
+  if (M.armed) { glow(C.loot, 14, 2); ctx.globalAlpha = 0.5 + 0.5 * Math.sin(clock * 8); ctx.strokeRect(sh.x - 6, sh.y - 12, sh.w + 12, sh.h + 14); ctx.globalAlpha = 1; }
+  // crates
+  for (const c of M.crates) { if (c.got) continue; glow(C.loot, 10, 2); ctx.strokeRect(c.x, c.y, c.w, c.h); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + c.w, c.y + c.h); ctx.moveTo(c.x + c.w, c.y); ctx.lineTo(c.x, c.y + c.h); ctx.stroke(); }
+  // relay terminals (holographic consoles)
+  for (const tm of M.terminals) { const used = tm.used, col = used ? C.dim : C.loot, bob = used ? 0 : Math.sin(clock * 3 + tm.cell) * 3;
+    glow(col, used ? 0 : 14, 2); ctx.globalAlpha = used ? 0.4 : 1;
+    ctx.strokeRect(tm.x + 2, tm.y + 6 + bob, 24, 18); ctx.beginPath(); ctx.moveTo(tm.x + 14, tm.y + 24 + bob); ctx.lineTo(tm.x + 14, tm.y + 34 + bob);
+    ctx.moveTo(tm.x + 6, tm.y + 34 + bob); ctx.lineTo(tm.x + 22, tm.y + 34 + bob); ctx.stroke();
+    if (!used) { ctx.beginPath(); for (let k = 0; k < 3; k++) { ctx.moveTo(tm.x + 6, tm.y + 11 + k * 5 + bob); ctx.lineTo(tm.x + 6 + rand(6, 16), tm.y + 11 + k * 5 + bob); } ctx.stroke();
+      ctx.shadowBlur = 0; ctx.font = `12px ${FONT_UI}`; ctx.textAlign = 'center'; ctx.fillStyle = C.loot; ctx.fillText('RELAY', tm.x + 14, tm.y - 4 + bob); }
+    ctx.globalAlpha = 1; }
+  // turrets
+  for (const t of M.turrets) { if (t.hp <= 0) continue; const dead = M.collapsed[t.cell]; glow(dead ? C.dim : C.hot, 10, 2);
+    ctx.beginPath(); ctx.moveTo(t.x - 12, t.y); ctx.lineTo(t.x - 8, t.y + 10); ctx.lineTo(t.x + 8, t.y + 10); ctx.lineTo(t.x + 12, t.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(t.x, t.y + 10, 6, 0, 7); ctx.moveTo(t.x, t.y + 10); ctx.lineTo(t.x + Math.cos(t.ang) * 16, t.y + 10 + Math.sin(t.ang) * 16); ctx.stroke(); }
+  // reactor
+  drawReactor(M.rx, M.ry, M.armed);
+  // crew
+  for (const cr of M.crews) { if (cr.state === 'following' && run.over && !run.over.win) continue;
+    drawAstronaut({ x: cr.x, y: cr.y, w: 12, face: cr.face }, C.loot);
+    if (cr.state === 'waiting') { ctx.shadowBlur = 0; ctx.font = `bold 16px ${FONT_UI}`; ctx.textAlign = 'center'; ctx.fillStyle = C.loot; ctx.fillText(Math.floor(clock * 3 + cr.cell) % 2 ? 'HELP' : '!', cr.x + 6, cr.y - 10); } }
+  // hunter drones (they phase through the hull)
+  for (const d of M.drones) { ctx.save(); ctx.translate(d.x, d.y); glow(C.hot, 14, 2); ctx.globalAlpha = 0.85;
+    poly(5, 11, clock * 4 + d.ph); ctx.beginPath(); ctx.arc(0, 0, 3 + Math.sin(clock * 12 + d.ph), 0, 7); ctx.stroke();
+    ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.arc(0, 0, 17, 0, 7); ctx.stroke(); ctx.restore(); }
+  // bullets
+  glow(C.line, 8, 2); for (const b of M.bul) { ctx.beginPath(); ctx.moveTo(b.x - Math.sign(b.vx) * 10, b.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+  glow(C.hot, 8, 2); for (const b of M.tb) { ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.stroke(); }
+  // player
+  if (!run.over || run.over.win) { if (!(run.inv > 0 && Math.floor(clock * 20) % 2)) drawAstronaut(p, C.ink); }
+  if (!run.over && !run.mods.desperate && p.fuel / stats().fuel < 0.25 && Math.floor(clock * 5) % 2) {
+    ctx.shadowBlur = 0; ctx.font = `bold 12px ${FONT_UI}`; ctx.textAlign = 'center'; ctx.fillStyle = p.fuel <= 0 ? C.red : C.core;
+    ctx.fillText(p.fuel <= 0 ? 'NO FUEL' : 'LOW FUEL', p.x + p.w / 2, p.y - 12); }
+  // guide chevron
+  const scan = stats().scan, showArrow = M.armed ? scan >= 1 : scan >= 2;
+  if (!run.over && showArrow) { const tx = M.armed ? sh.x + sh.w / 2 : M.rx, ty = M.armed ? sh.y + 20 : M.ry, pcx = p.x + p.w / 2, pcy = p.y + p.h / 2, d = Math.hypot(tx - pcx, ty - pcy);
+    if (d > 180) { const a = Math.atan2(ty - pcy, tx - pcx), r = 42; ctx.save(); ctx.translate(pcx + Math.cos(a) * r, pcy + Math.sin(a) * r); ctx.rotate(a); glow(M.armed ? C.loot : C.core, 8, 2); ctx.globalAlpha = 0.85;
+      ctx.beginPath(); ctx.moveTo(-5, -7); ctx.lineTo(4, 0); ctx.lineTo(-5, 7); ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1; } }
+  drawFx(); ctx.restore(); ctx.shadowBlur = 0;
+  // HUD
+  hudCommon();
+  ctx.textAlign = 'center';
+  if (M.armed && !(run.over && !run.over.win)) {
+    const left = Math.max(0, run.over ? run.over.left : M.fuse - M.armT), urgent = left < 5;
+    ctx.font = `${urgent ? 46 : 38}px ${FONT_DISP}`; ctx.fillStyle = urgent && Math.floor(clock * 8) % 2 ? '#ffffff' : C.red;
+    ctx.shadowColor = C.red; ctx.shadowBlur = 16; ctx.fillText(left.toFixed(1), W / 2, 62); ctx.shadowBlur = 0;
+    ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.ink; ctx.fillText(run.over ? 'ESCAPED' : 'GET BACK TO YOUR SHIP', W / 2, 84);
+  } else if (!M.armed) {
+    ctx.font = `14px ${FONT_UI}`;
+    if (M.lock) {
+      ctx.fillStyle = C.dim; ctx.fillText('FIND THE REACTOR · HUNTER DRONES ACTIVE', W / 2, 24);
+      ctx.font = `28px ${FONT_DISP}`; ctx.fillStyle = Math.floor(clock * 4) % 2 ? C.hot : C.red; ctx.shadowColor = C.hot; ctx.shadowBlur = 14;
+      ctx.fillText('LOCKDOWN', W / 2, 58); ctx.shadowBlur = 0;
+    } else {
+      const left = Math.max(0, M.alertMax - M.alert), m = Math.floor(left / 60), s = Math.floor(left % 60), fr = left / M.alertMax;
+      const col = left < 10 ? (Math.floor(clock * 6) % 2 ? '#ffffff' : C.hot) : left < 20 ? C.core : C.line;
+      ctx.fillStyle = C.dim; ctx.fillText('FIND THE REACTOR · SECURITY SWEEP IN', W / 2, 24);
+      ctx.font = `${left < 10 ? 32 : 28}px ${FONT_DISP}`; ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 12;
+      ctx.fillText(`${m}:${String(s).padStart(2, '0')}`, W / 2, 58); ctx.shadowBlur = 0;
+      const bw = Math.min(260, W - 180); ctx.fillStyle = 'rgba(70,241,255,0.15)'; ctx.fillRect(W / 2 - bw / 2, 68, bw, 4);
+      ctx.fillStyle = col; ctx.fillRect(W / 2 - bw / 2, 68, bw * fr, 4);
+    }
+  }
+  // active power-ups
+  if (run.modList.length) { ctx.textAlign = 'left'; ctx.font = `12px ${FONT_UI}`;
+    run.modList.forEach((nm, i) => { const m = MODS.find(x => x.name === nm); ctx.fillStyle = m && m.cursed ? C.hot : C.loot; ctx.fillText('◆ ' + nm, 16, 92 + i * 16); }); }
+  // fuel gauge
+  { const st = stats(), fr = M.p.fuel / st.fuel, bw = 96; ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.strokeRect(16.5, 42.5, bw, 6);
+    ctx.fillStyle = fr < 0.25 ? C.red : C.core; ctx.fillRect(17, 43, (bw - 1) * fr, 5);
+    ctx.textAlign = 'left'; ctx.font = `11px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('FUEL', bw + 24, 49); }
+  if (stats().scan >= 3) drawMinimap();
+  if (M.prompt && !run.over) {
+    ctx.font = `15px ${FONT_UI}`; const y = H - (matchMedia('(pointer:coarse)').matches ? 96 : 32);
+    if (M.prompt === 'reactor') { const a = fuseFor(false).toFixed(1), b = fuseFor(true).toFixed(1);
+      ctx.fillStyle = C.core; ctx.fillText(`[E] ARM · ${a}s fuse`, W / 2, y - 22); ctx.fillStyle = C.hot; ctx.fillText(`[Q] OVERCLOCK · ${b}s fuse · ×2 salvage`, W / 2, y); }
+    else { ctx.fillStyle = C.dim; ctx.fillText('Arm the reactor before you leave', W / 2, y); }
+  }
+}
+function hudCommon() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0;
+  for (let i = 0; i < run.maxShield; i++) { ctx.save(); ctx.translate(26 + i * 22, 26); glow(C.line, i < run.shield ? 8 : 0, 1.5); ctx.globalAlpha = i < run.shield ? 1 : 0.3; poly(6, 8, Math.PI / 6);
+    if (i < run.shield) { ctx.globalAlpha = 0.35; ctx.fill(); } ctx.restore(); }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.loot;
+  ctx.fillText(`SALVAGE ${run.salvage}${run.mult > 1 ? ' ×2' : ''}`, 16, 70);
+  ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillText(`STATION ${run.n}`, W - 16, 30);
+  if (mode === 'maze') { const cap = stats().crewCap; ctx.fillStyle = M.carried.length ? C.loot : C.dim;
+    ctx.fillText(`CREW ${M.carried.length}/${cap} · ${M.crews.length} ABOARD STATION`, W - 16, 50); }
+}
+function drawMinimap() {
+  const cs = Math.max(6, Math.min(14, Math.floor(150 / M.cols))), x0 = W - 16 - M.cols * cs, y0 = 64;
+  ctx.fillStyle = 'rgba(4,8,16,0.75)'; ctx.fillRect(x0 - 6, y0 - 6, M.cols * cs + 12, M.rows * cs + 12);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = C.line; ctx.globalAlpha = 0.7; ctx.beginPath();
+  for (let i = 0; i < M.n; i++) { const cx = x0 + (i % M.cols) * cs + cs / 2, cy = y0 + ((i / M.cols) | 0) * cs + cs / 2;
+    for (const j of M.links[i]) if (j > i) { ctx.moveTo(cx, cy); ctx.lineTo(x0 + (j % M.cols) * cs + cs / 2, y0 + ((j / M.cols) | 0) * cs + cs / 2); } }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  const dot = (i, col, r) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x0 + (i % M.cols) * cs + cs / 2, y0 + ((i / M.cols) | 0) * cs + cs / 2, r, 0, 7); ctx.fill(); };
+  for (let i = 0; i < M.n; i++) if (M.collapsed[i]) { ctx.fillStyle = 'rgba(255,42,58,0.5)'; ctx.fillRect(x0 + (i % M.cols) * cs, y0 + ((i / M.cols) | 0) * cs, cs, cs); }
+  dot(M.start, C.line, 3); dot(M.reactor, C.core, 3.5);
+  for (const cr of M.crews) if (cr.state === 'waiting') dot(cr.cell, C.loot, 2.5);
+  for (const tm of M.terminals) if (!tm.used) { const x = x0 + (tm.cell % M.cols) * cs + cs / 2, y = y0 + ((tm.cell / M.cols) | 0) * cs + cs / 2; ctx.strokeStyle = C.loot; ctx.lineWidth = 1; ctx.strokeRect(x - 3, y - 3, 6, 6); }
+  if (Math.floor(clock * 4) % 2) dot(cellOf(M.p.x + 7, M.p.y + 11), '#ffffff', 2.5);
+}
+
+
+/* ================= ESCAPE CINEMATIC ================= */
+let outro = null;
+const STATION_POLYS = [
+  [[430, 60], [120, 60], [40, 140], [0, 160], [0, 300], [160, 300], [160, 400], [0, 400], [0, 540], [40, 560], [120, 640], [430, 640]],
+  [[430, 60], [430, 640]], [[60, 100], [60, 270]], [[120, 100], [120, 270]], [[180, 100], [180, 270]], [[240, 100], [240, 270]], [[300, 100], [300, 270]], [[360, 100], [360, 270]],
+  [[60, 430], [60, 600]], [[120, 430], [120, 600]], [[180, 430], [180, 600]], [[240, 430], [240, 600]], [[300, 430], [300, 600]], [[360, 430], [360, 600]],
+  [[200, 300], [430, 300]], [[200, 400], [430, 400]]
+];
+const RX0 = 300, RY0 = 350;
+function startOutro() {
+  mode = 'outro'; parts = []; texts = [];
+  const pieces = [];
+  for (const pl of STATION_POLYS) for (let i = 0; i < pl.length - 1; i++) {
+    const [x1, y1] = pl[i], [x2, y2] = pl[i + 1], len = Math.hypot(x2 - x1, y2 - y1), n = Math.max(1, Math.ceil(len / 55));
+    for (let k = 0; k < n; k++) { const ax = x1 + (x2 - x1) * k / n, ay = y1 + (y2 - y1) * k / n, bx = x1 + (x2 - x1) * (k + 1) / n, by = y1 + (y2 - y1) * (k + 1) / n;
+      pieces.push({ cx: (ax + bx) / 2, cy: (ay + by) / 2, hx: (bx - ax) / 2, hy: (by - ay) / 2, vx: 0, vy: 0, rot: 0, vr: 0 }); }
+  }
+  outro = { t: 0, t0: performance.now(), pieces, boomed: false, popT: 0, left: run.over.left };
+  say(run.over.left < 1 ? 'escapeClose' : 'escape', true);
+}
+function updOutro(dt) {
+  const o = outro; o.t = (performance.now() - o.t0) / 1000;
+  if (!o.boomed) { shake = Math.min(14, o.t * 18); o.popT -= dt;
+    if (o.popT <= 0) { o.popT = 0.14; const pc = o.pieces[(Math.random() * o.pieces.length) | 0]; burst(pc.cx, pc.cy, Math.random() < 0.5 ? C.core : C.red, 6, 160, 0.4); audio.noise(0.12, 0.2, 900); } }
+  if (!o.boomed && o.t > 0.75) { o.boomed = true; flash = 1; shake = 26; sfx.boom(); music.sting(true);
+    for (const pc of o.pieces) { const dx = pc.cx - RX0, dy = pc.cy - RY0, d = Math.hypot(dx, dy) || 1, sp = rand(120, 380) * (1.2 - Math.min(1, d / 500));
+      pc.vx = dx / d * sp * 1.6; pc.vy = dy / d * sp * 1.6; pc.vr = rand(-4, 4); }
+    burst(RX0, RY0, '#ffffff', 30, 560, 1); burst(RX0, RY0, C.core, 26, 420, 0.9); burst(RX0, RY0, C.red, 20, 300, 0.8);
+    showBanner('STATION DESTROYED', C.loot, o.left < 1 ? `${o.left.toFixed(2)}s to spare` : '', 2.2); }
+  for (const pc of o.pieces) { pc.cx += pc.vx * dt; pc.cy += pc.vy * dt; pc.rot += pc.vr * dt; pc.vx *= 0.995; pc.vy *= 0.995; }
+  if (o.t > 2.9 || (o.t > 0.4 && (hit('ok') || hit('fire') || hit('act')))) { outro = null; showResult(); }
+}
+function drawOutro() {
+  const o = outro, sc = Math.min(W / 900, H / 760);
+  drawStars(clock * 160, 0);
+  ctx.save(); ctx.translate(W / 2 + 60 * sc + (shake ? rand(-shake, shake) : 0), H / 2 + (shake ? rand(-shake, shake) : 0)); ctx.scale(sc, sc); ctx.translate(-215, -350);
+  if (o.boomed) { const r = (o.t - 0.75) * 1100, a = Math.max(0, 1 - (o.t - 0.75) / 1.2); glow(C.core, 20, 3); ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(RX0, RY0, r, 0, 7); ctx.stroke();
+    glow('#ffffff', 14, 1.5); ctx.beginPath(); ctx.arc(RX0, RY0, r * 0.7, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+  const fade = o.boomed ? Math.max(0, 1 - (o.t - 0.75) / 2) : 1;
+  glow(o.boomed ? C.core : C.line, 12, 2); ctx.globalAlpha = fade; ctx.beginPath();
+  for (const pc of o.pieces) { const c = Math.cos(pc.rot), sn = Math.sin(pc.rot), ax = pc.hx * c - pc.hy * sn, ay = pc.hx * sn + pc.hy * c;
+    ctx.moveTo(pc.cx - ax, pc.cy - ay); ctx.lineTo(pc.cx + ax, pc.cy + ay); }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (!o.boomed) { ctx.save(); ctx.translate(RX0, RY0); glow(Math.sin(clock * 30) > 0 ? C.red : '#ffffff', 22, 2.5); poly(6, 26 + o.t * 14, clock * 4); poly(6, 14, -clock * 6); ctx.restore(); }
+  const sx = 80 - 120 * o.t - 420 * o.t * o.t;
+  if (sx > -900) { if (Math.random() < 0.9) parts.push({ x: sx + 16, y: 350 + rand(-3, 3), vx: rand(160, 280), vy: rand(-20, 20), life: 0.3, max: 0.3, col: C.core, len: 8 });
+    ctx.save(); ctx.translate(sx, 350); ctx.scale(-1.2, 1.2); drawShip(0, 0); ctx.restore(); }
+  drawFx(); ctx.restore(); ctx.shadowBlur = 0;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.textAlign = 'right'; ctx.font = `12px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('Enter to skip', W - 16, H - 16);
+}
+
+/* ================= PANELS ================= */
+const costs = (base, n) => Array.from({ length: n }, (_, i) => Math.round(base * Math.pow(1.7, i) / 5) * 5);
+const UPS = [
+  { k: 'shield', name: 'Suit shield', desc: '+1 shield pip', cost: costs(100, 4) },
+  { k: 'fuel', name: 'Fuel tank', desc: '+0.5s of jetpack thrust', cost: costs(50, 5) },
+  { k: 'thrust', name: 'Thrusters', desc: '+8% speed and lift, ship and jetpack', cost: costs(60, 5) },
+  { k: 'fuse', name: 'Long fuse', desc: '+1.5s on every countdown', cost: costs(50, 5) },
+  { k: 'crew', name: 'Crew bay', desc: 'Carry one more survivor', cost: costs(90, 3) },
+  { k: 'scan', name: 'Scanner', desc: ['Arrow to your ship during the escape', 'Arrow to the reactor', 'Full station map'], cost: [150, 300, 550] }
+];
+let resetArmed = false;
+function renderHub() {
+  document.getElementById('hSalvage').textContent = save.salvage;
+  const box = document.getElementById('hUps'); box.innerHTML = '';
+  UPS.forEach((u, i) => { const lvl = Math.min(save.up[u.k], u.cost.length), max = lvl >= u.cost.length, cost = u.cost[lvl];
+    const desc = Array.isArray(u.desc) ? (max ? 'All tiers installed' : `Next: ${u.desc[lvl]}`) : u.desc;
+    const row = document.createElement('div'); row.className = 'up';
+    row.innerHTML = `<span class="nm">${i + 1} · ${u.name}</span><span class="ds">${desc}</span><span class="pips">${'◆'.repeat(lvl)}${'◇'.repeat(u.cost.length - lvl)}</span>`;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'buy-' + u.k;
+    b.textContent = max ? 'Maxed' : `Buy · ${cost}`; b.disabled = max || save.salvage < cost; b.onclick = () => buy(i);
+    row.appendChild(b); box.appendChild(row); });
+  const { cols, rows } = stationSize();
+  document.getElementById('hStats').textContent = `Runs ${save.runs} · Escapes ${save.escapes} · Best haul ${save.best} · Next station ${cols}×${rows} sections`;
+  document.getElementById('bLaunch').textContent = `Launch station ${save.runs + 1} ⏎`;
+  resetArmed = false; document.getElementById('bReset').textContent = 'Reset progress';
+}
+function buy(i) { const u = UPS[i], lvl = save.up[u.k]; if (lvl >= u.cost.length || save.salvage < u.cost[lvl]) return;
+  save.salvage -= u.cost[lvl]; save.up[u.k]++; persist(); sfx.pick(); renderHub();
+  const sp = hangarShip(); burst(sp.x, sp.y - 20, C.loot, 30, 260, 0.9); burst(sp.x, sp.y - 20, C.line, 16, 160, 0.7); flash = 0.15; say('buy', true); }
+let revealTok = 0;
+function toHub() { revealTok++; mode = 'hub'; renderHub(); showPanel('hub'); syncMusicBtn();
+  if (save.salvage < 40 && save.runs > 0) say('poor'); else say('hangar'); }
+function showResult() {
+  const o = run.over, rows = [];
+  let total, vega, stamps = [];
+  if (o.win) {
+    const coreMul = run.mods.overcore ? 1.5 : 1, base = Math.round(run.salvage * run.mult * coreMul), crew = M.carried.length * 40, photo = o.left < 3 ? Math.round(30 + (3 - o.left) * 40) : 0;
+    total = base + crew + photo;
+    rows.push(['Salvage collected', run.salvage]);
+    if (run.mult > 1 || coreMul > 1) rows.push([[run.mult > 1 ? 'Overclock ×2' : '', coreMul > 1 ? 'Unstable Core ×1.5' : ''].filter(Boolean).join(' + '), '+' + (base - run.salvage)]);
+    if (crew) rows.push([`Crew rescued (${M.carried.length} of ${M.crews.length})`, '+' + crew]);
+    if (photo) rows.push([`Photo finish (${o.left.toFixed(2)}s left)`, '+' + photo]);
+    if (run.modList.length) rows.push(['Power-ups', run.modList.join(', ')]);
+    rows.push(['Time left on the fuse', o.left.toFixed(2) + 's']);
+    if (save.bestLeft === null || o.left < save.bestLeft) { if (save.bestLeft !== null) stamps.push('CLOSEST CALL'); save.bestLeft = o.left; }
+    save.escapes++; save.crewTotal = (save.crewTotal || 0) + M.carried.length;
+    document.getElementById('rHead').textContent = 'ESCAPED'; document.getElementById('rHead').className = 'win';
+    document.getElementById('rReason').textContent = o.left < 1 ? 'That was way too close. Do it again.' : 'The station is debris. Your hold is full.';
+    vega = pickLine(o.left < 1 ? 'escapeClose' : 'escape');
+  } else {
+    total = Math.round(run.salvage * 0.4);
+    rows.push(['Salvage collected', run.salvage], ['Recovered by the salvage drone (40%)', total]);
+    document.getElementById('rHead').textContent = 'LOST WITH THE STATION'; document.getElementById('rHead').className = 'lose';
+    document.getElementById('rReason').textContent = o.reason;
+    vega = pickLine('death');
+  }
+  rows.push(['Banked', total]);
+  if (total > save.best && save.runs > 0) stamps.unshift('NEW RECORD');
+  save.salvage += total; save.runs++; save.best = Math.max(save.best, total); persist();
+  document.getElementById('rEyebrow').textContent = `Debrief · station ${run.n}`;
+  const vg = document.getElementById('rVega'); vg.innerHTML = ''; const vb = document.createElement('b'); vb.textContent = 'VEGA · SHIP AI'; vg.append(vb, document.createTextNode(vega)); vg.hidden = true;
+  mode = 'result'; showPanel('result'); comm = null;
+  revealRows(rows, total, stamps);
+}
+function revealRows(rows, total, stamps) {
+  const box = document.getElementById('rRows'), stamp = document.getElementById('rStamp'), vg = document.getElementById('rVega'), tok = ++revealTok;
+  box.innerHTML = ''; stamp.hidden = true;
+  const mk = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; return e; };
+  rows.forEach((r, i) => setTimeout(() => {
+    if (tok !== revealTok) return;
+    const last = i === rows.length - 1, v = mk('v' + (last ? ' tot' : ''), last ? '0' : String(r[1]));
+    box.append(mk('k' + (last ? ' tot' : ''), r[0]), v); audio.tone(last ? 520 : 880, 0.05, 'square', 0.1);
+    if (last) countUp(v, total, tok, () => {
+      vg.hidden = false; audio.tone(1500, 0.03, 'square', 0.04);
+      if (stamps.length) setTimeout(() => { if (tok !== revealTok) return; stamp.textContent = stamps.join(' · '); stamp.hidden = false; audio.noise(0.2, 0.4, 2000); sfx.win(); shake = 6; }, 250);
+    });
+  }, 300 + i * 300));
+}
+function countUp(el, target, tok, done) {
+  const t0 = performance.now(), dur = Math.min(1200, 300 + target * 3);
+  const step = () => { if (tok !== revealTok) return; const k = Math.min(1, (performance.now() - t0) / dur);
+    el.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))); if (Math.random() < 0.6) audio.tone(500 + k * 900, 0.02, 'square', 0.04);
+    if (k < 1) requestAnimationFrame(step); else done(); };
+  requestAnimationFrame(step);
+}
+document.getElementById('bStart').onclick = () => { audio.init(); toHub(); };
+document.getElementById('bLaunch').onclick = () => { audio.init(); startRun(); };
+document.getElementById('bBack').onclick = () => toHub();
+document.getElementById('bMusic').onclick = () => { audio.init(); music.toggle(); };
+document.getElementById('bReset').onclick = () => {
+  const b = document.getElementById('bReset');
+  if (!resetArmed) { resetArmed = true; b.textContent = 'Click again to wipe all progress'; return; }
+  const m = save.music; save = freshSave(); save.music = m; persist(); renderHub();
+};
+
+/* ================= HANGAR SCENE ================= */
+function hangarCenter() { return W >= 980 ? Math.max(W * 0.28, (W - Math.min(560, W * 0.5) - W * 0.04) / 2) : W / 2; }
+function hangarShip() { const fy = H * 0.74, s = Math.min(3.2, Math.max(1.6, H / 260)); return { x: hangarCenter(), y: fy, s }; }
+function drawLander(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); glow(C.line, 12, 2 / s * 1.4);
+  ctx.beginPath(); ctx.moveTo(-38, 0); ctx.lineTo(-28, -16); ctx.lineTo(-12, -34); ctx.lineTo(20, -34); ctx.lineTo(38, -16); ctx.lineTo(30, 0);
+  ctx.moveTo(-28, -16); ctx.lineTo(38, -16); ctx.moveTo(-2, -34); ctx.lineTo(4, -46); ctx.moveTo(-6, -24); ctx.lineTo(14, -24); ctx.stroke();
+  ctx.restore();
+}
+function drawHangar() {
+  const cx = hangarCenter(), sp = hangarShip(), fy = sp.y;
+  drawStars(clock * 8, 0);
+  // back wall struts and window
+  ctx.shadowBlur = 0; ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.globalAlpha = 0.18;
+  for (let i = -5; i <= 5; i++) { const x = cx + i * 90; ctx.beginPath(); ctx.moveTo(x, fy - H * 0.5); ctx.lineTo(x, fy); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(cx - 470, fy - H * 0.5); ctx.lineTo(cx + 470, fy - H * 0.5); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // ceiling lights
+  for (let i = -4; i <= 4; i++) { const on = Math.sin(clock * 2 + i) > -0.6; ctx.fillStyle = on ? C.core : C.dim; ctx.globalAlpha = on ? 0.9 : 0.3; ctx.fillRect(cx + i * 90 - 8, fy - H * 0.5 - 2, 16, 3); }
+  ctx.globalAlpha = 1;
+  // floor with perspective
+  glow(C.line, 10, 1.5); ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(W, fy); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.globalAlpha = 0.22; ctx.lineWidth = 1; ctx.beginPath();
+  for (let k = -10; k <= 10; k++) { ctx.moveTo(cx + k * 50, fy); ctx.lineTo(cx + k * 190, H); }
+  for (let j = 1; j < 5; j++) { const y = fy + (H - fy) * Math.pow(j / 5, 1.6); ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  // launch pad
+  glow(C.core, 10, 1.5); ctx.beginPath(); ctx.ellipse(cx, fy, 70 * sp.s / 2.2, 9, 0, 0, 7); ctx.stroke();
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + clock, on = Math.floor(clock * 4 + i) % 3 === 0; ctx.fillStyle = on ? C.core : 'rgba(255,182,39,0.25)';
+    ctx.fillRect(cx + Math.cos(a) * 70 * sp.s / 2.2 - 2, fy + Math.sin(a) * 9 - 2, 4, 4); }
+  // ship, gently idling
+  drawLander(cx, fy - 4 + Math.sin(clock * 2) * 1.5, sp.s);
+  // rescued crew line up on the deck
+  const n = Math.min(save.crewTotal || 0, 28);
+  for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, k = Math.floor(i / 2), x = cx + side * (70 * sp.s / 2.2 + 30 + k * 26), bob = Math.abs(Math.sin(clock * 3 + i)) * 2;
+    if (x < 10 || x > W - 10) continue;
+    ctx.save(); ctx.translate(x, fy - 22 * 1.4 - bob); ctx.scale(1.4, 1.4); drawAstronaut({ x: -6, y: 0, w: 12, face: -side }, C.loot); ctx.restore(); }
+  ctx.shadowBlur = 0; ctx.textAlign = 'center'; ctx.font = `12px ${FONT_UI}`; ctx.fillStyle = C.dim;
+  ctx.fillText(n ? `CREW RESCUED · ${save.crewTotal}` : 'NO CREW YET · RESCUE SURVIVORS TO FILL THE HANGAR', cx, fy + 34);
+}
+/* ================= LOOP ================= */
+function update(dt) {
+  clock += dt;
+  if (mode === 'title' && hit('ok')) { toHub(); return; }
+  if (mode === 'hub') { if (hit('ok')) { startRun(); return; } for (let i = 0; i < UPS.length; i++) if (hit('u' + (i + 1))) buy(i); }
+  if (mode === 'result' && hit('ok')) { toHub(); return; }
+  if (hit('music')) { audio.init(); music.toggle(); }
+  tracks.update(dt);
+  if ((mode === 'fly' || mode === 'maze') && hit('pause') && !run.over) paused = !paused;
+  music.set(mode === 'fly' ? (fly.docking ? 'explore' : 'fight') : mode === 'maze' ? (run.over ? null : M.armed ? 'countdown' : M.lock ? 'lockdown' : 'explore') : mode === 'outro' ? null : 'hangar');
+  if (paused) return;
+  if (mode === 'fly') updFly(dt); else if (mode === 'maze') updMaze(dt); else if (mode === 'outro') updOutro(dt);
+  updFx(dt);
+}
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  ctx.fillStyle = C.void; ctx.fillRect(0, 0, W, H);
+  if (mode === 'fly') drawFly();
+  else if (mode === 'maze') drawMaze();
+  else if (mode === 'outro') drawOutro();
+  else if (mode === 'hub' || mode === 'result') { drawHangar(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawFx(); }
+  else { drawStars(clock * 30, 0); ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(Math.min(W, H) / 220, Math.min(W, H) / 220); ctx.globalAlpha = 0.35; drawReactor(0, 0, false); ctx.restore(); ctx.globalAlpha = 1; }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0;
+  if (mode === 'fly' || mode === 'maze' || mode === 'outro') drawBanner();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawComm();
+  if (flash > 0) { ctx.fillStyle = '#ffffff'; ctx.globalAlpha = Math.min(0.8, flash); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  if (paused) { ctx.fillStyle = 'rgba(4,5,11,0.6)'; ctx.fillRect(0, 0, W, H); ctx.textAlign = 'center'; ctx.fillStyle = C.line; ctx.font = `28px ${FONT_DISP}`; ctx.fillText('PAUSED', W / 2, H / 2); ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('Press P to resume', W / 2, H / 2 + 28); }
+  // scanlines
+  ctx.globalAlpha = 0.06; ctx.fillStyle = '#000000'; for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1); ctx.globalAlpha = 1;
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(1 / 20, Math.max(0, (now - last) / 1000)); last = now;
+  if (W === 0 || cvs.width <= 1) resize();
+  update(dt); render(); pressed.clear();
+  requestAnimationFrame(frame);
+}
+showPanel('title');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
