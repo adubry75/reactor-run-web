@@ -112,7 +112,7 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
         <kbd>P</kbd><span>Pause</span>
         <kbd>M</kbd><span>Music on or off</span>
       </div>
-      <div class="actions"><button id="bStart" type="button">Enter the hangar ⏎</button></div>
+      <div class="actions"><button id="bStart" type="button">Enter the hangar ⏎</button><span class="stats" id="tSound">♪ Click anywhere or press any key for music</span></div>
     </div>
   </section>
 
@@ -208,12 +208,13 @@ document.querySelectorAll('#touch button').forEach(b => {
   b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
   b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
-cvs.addEventListener('pointerdown', () => audio.init());
+// browsers only allow audio after a user gesture: any click or key starts the title music
+addEventListener('pointerdown', () => audio.init(), true); addEventListener('keydown', () => audio.init(), true);
 
 /* ---------- audio ---------- */
 const audio = {
   a: null, m: null,
-  init() { if (this.a) return; try { const A = window.AudioContext || window.webkitAudioContext; this.a = new A(); this.m = this.a.createGain(); this.m.gain.value = 0.22; this.m.connect(this.a.destination); music.start(); } catch (e) { this.a = null; } },
+  init() { if (this.a) return; try { const A = window.AudioContext || window.webkitAudioContext; this.a = new A(); this.m = this.a.createGain(); this.m.gain.value = 0.22; this.m.connect(this.a.destination); music.start(); const ts = document.getElementById('tSound'); if (ts) ts.hidden = true; } catch (e) { this.a = null; } },
   tone(f, d, type = 'square', v = 0.3, slide = 0) {
     const a = this.a; if (!a) return; const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + d);
