@@ -87,6 +87,12 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 #touch button{width:56px;height:56px;padding:0;background:rgba(70,241,255,.12);color:var(--line);border:1px solid rgba(70,241,255,.6);box-shadow:none;font-size:14px;touch-action:none;user-select:none;-webkit-user-select:none}
 @media (pointer:coarse){#touch{display:flex}}
 @media (prefers-reduced-motion:reduce){h1{text-shadow:none}}
+#pGate{background:transparent;cursor:pointer}
+.gate{display:flex;flex-direction:column;align-items:center;gap:28px;text-align:center}
+.gate h1{font-size:clamp(36px,9vw,72px)}
+#bGate{background:transparent;color:var(--core);border:1px solid var(--core);font-size:18px;letter-spacing:.2em;padding:14px 22px;animation:gateBlink 1.1s steps(2,start) infinite}
+@keyframes gateBlink{to{visibility:hidden}}
+@media (prefers-reduced-motion:reduce){#bGate{animation:none}}
 </style>
 <style>[hidden]{display:none!important}body{margin:0}</style>
 </head>
@@ -95,7 +101,10 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 <div id="game">
   <canvas id="cv" aria-label="Reactor Run game screen"></canvas>
 
-  <section class="panel" id="pTitle">
+  <section class="panel" id="pGate">
+    <div class="gate"><h1>REACTOR RUN</h1><button id="bGate" type="button">▶ PRESS ANY KEY</button></div>
+  </section>
+  <section class="panel" id="pTitle" hidden>
     <div class="card">
       <div class="eyebrow">Prototype · build 0.5</div>
       <h1>REACTOR RUN</h1>
@@ -112,7 +121,7 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
         <kbd>P</kbd><span>Pause</span>
         <kbd>M</kbd><span>Music on or off</span>
       </div>
-      <div class="actions"><button id="bStart" type="button">Enter the hangar ⏎</button><span class="stats" id="tSound">♪ Click anywhere or press any key for music</span></div>
+      <div class="actions"><button id="bStart" type="button">Enter the hangar ⏎</button></div>
     </div>
   </section>
 
@@ -209,12 +218,14 @@ document.querySelectorAll('#touch button').forEach(b => {
   b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
 });
 // browsers only allow audio after a user gesture: any click or key starts the title music
-addEventListener('pointerdown', () => audio.init(), true); addEventListener('keydown', () => audio.init(), true);
+function gateOff() { if (mode !== 'gate') return false; mode = 'title'; showPanel('title'); return true; }
+addEventListener('pointerdown', () => { audio.init(); gateOff(); }, true);
+addEventListener('keydown', e => { audio.init(); if (gateOff()) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 
 /* ---------- audio ---------- */
 const audio = {
   a: null, m: null,
-  init() { if (this.a) return; try { const A = window.AudioContext || window.webkitAudioContext; this.a = new A(); this.m = this.a.createGain(); this.m.gain.value = 0.22; this.m.connect(this.a.destination); music.start(); const ts = document.getElementById('tSound'); if (ts) ts.hidden = true; } catch (e) { this.a = null; } },
+  init() { if (this.a) return; try { const A = window.AudioContext || window.webkitAudioContext; this.a = new A(); this.m = this.a.createGain(); this.m.gain.value = 0.22; this.m.connect(this.a.destination); music.start(); } catch (e) { this.a = null; } },
   tone(f, d, type = 'square', v = 0.3, slide = 0) {
     const a = this.a; if (!a) return; const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + d);
@@ -450,8 +461,8 @@ function drawStars(ox, oy) {
 }
 
 /* ---------- state ---------- */
-let mode = 'title', paused = false, run = null, fly = null, M = null, clock = 0;
-const panels = { title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult') };
+let mode = 'gate', paused = false, run = null, fly = null, M = null, clock = 0;
+const panels = { gate: document.getElementById('pGate'), title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult') };
 function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name; if (!name && document.activeElement) document.activeElement.blur(); const b = name && panels[name].querySelector('button'); if (b) b.focus({ preventScroll: true }); }
 
 function startRun() {
@@ -1220,7 +1231,7 @@ function frame(now) {
   update(dt); render(); pressed.clear();
   requestAnimationFrame(frame);
 }
-showPanel('title');
+showPanel('gate');
 requestAnimationFrame(frame);
 })();
 </script>
