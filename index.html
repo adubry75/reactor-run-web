@@ -97,7 +97,7 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 
   <section class="panel" id="pTitle">
     <div class="card">
-      <div class="eyebrow">Prototype · build 0.4</div>
+      <div class="eyebrow">Prototype · build 0.5</div>
       <h1>REACTOR RUN</h1>
       <p class="tag">Fly in. Blow the core. Get out alive.</p>
       <p>Knock out the station's fighters to drop its docking shield, then fly into the bay. Find the reactor, arm it, and race the blast wave back to your ship. Corridors collapse from the core outward, so every detour costs you.</p>
@@ -193,8 +193,9 @@ const KEYMAP = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right'
   Space:'fire', KeyJ:'fire', KeyE:'act', KeyQ:'alt', Enter:'ok', NumpadEnter:'ok', KeyP:'pause', Escape:'pause', Digit1:'u1', Digit2:'u2', Digit3:'u3', Digit4:'u4', Digit5:'u5', Digit6:'u6', KeyM:'music' };
 addEventListener('keydown', e => {
   const k = KEYMAP[e.code]; if (!k) return;
-  if (e.target && e.target.tagName === 'BUTTON' && (k === 'ok' || k === 'fire')) e.preventDefault();
-  else e.preventDefault();
+  const btn = e.target && e.target.tagName === 'BUTTON' && e.target.offsetParent !== null;
+  if (btn && (k === 'ok' || k === 'fire')) return; // let the focused button click itself
+  e.preventDefault();
   if (!keys.has(k)) pressed.add(k); keys.add(k); audio.init();
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
@@ -448,7 +449,7 @@ function drawStars(ox, oy) {
 /* ---------- state ---------- */
 let mode = 'title', paused = false, run = null, fly = null, M = null, clock = 0;
 const panels = { title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult') };
-function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name; const b = name && panels[name].querySelector('button'); if (b) b.focus({ preventScroll: true }); }
+function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name; if (!name && document.activeElement) document.activeElement.blur(); const b = name && panels[name].querySelector('button'); if (b) b.focus({ preventScroll: true }); }
 
 function startRun() {
   const st = stats();
@@ -489,6 +490,11 @@ function pickEtype() {
   if (t >= 6) pool.push('gunship', 'diver');
   return pool[(Math.random() * pool.length) | 0];
 }
+function spawnY(x, s) { // keep new fighters out of the player's face
+  let best = rand(90, FH - 90), bd = Math.hypot(x - s.x, best - s.y);
+  for (let i = 0; i < 8 && bd < 260; i++) { const y = rand(90, FH - 90), d = Math.hypot(x - s.x, y - s.y); if (d > bd) { best = y; bd = d; } }
+  return best;
+}
 function updFly(dt) {
   const f = fly, s = f.s, st = stats(); f.t += dt;
   f.scale = Math.min(H / FH, W / 560); const viewW = W / f.scale;
@@ -516,7 +522,7 @@ function updFly(dt) {
   const alive = f.en.length, remaining = f.need - f.killed;
   f.spawnT -= dt;
   if (remaining > alive && alive < f.maxAlive && f.spawnT <= 0) {
-    const x = Math.min(f.cam.x + viewW + 60, SX - 50), y = rand(90, FH - 90), type = pickEtype(), d = ETYPES[type];
+    const x = Math.min(f.cam.x + viewW + 60, SX - 50), y = spawnY(x, s), type = pickEtype(), d = ETYPES[type];
     f.en.push({ type, hp: d.hp, x, y, by: y, vx: -rand(d.spd[0], d.spd[1]), ph: rand(0, 6), fire: rand(1, 2.2) }); f.spawnT = rand(0.6, 1.4) * pace();
     if (x < f.cam.x + viewW) burst(x, y, C.hot, 8, 120, 0.4);
   }
@@ -525,14 +531,14 @@ function updFly(dt) {
     e.x += e.vx * dt;
     if (e.type === 'diver') { e.by += clamp(s.y - e.by, -1, 1) * 120 * dt; e.y = e.by + Math.sin(f.t * 5 + e.ph) * 14; }
     else e.y = e.by + Math.sin(f.t * (e.type === 'gunship' ? 1 : 2) + e.ph) * (e.type === 'gunship' ? 30 : 60);
-    if (e.x < f.cam.x - 80) { e.x = Math.min(f.cam.x + viewW + 60, SX - 50); e.by = rand(90, FH - 90); }
+    if (e.x < f.cam.x - 80) { e.x = Math.min(f.cam.x + viewW + 60, SX - 50); e.by = spawnY(e.x, s); }
     e.fire -= dt;
     if (e.fire <= 0 && e.x < f.cam.x + viewW && e.x > f.cam.x) {
       const a = Math.atan2(s.y - e.y, s.x - e.x), spread = e.type === 'gunship' ? [-0.25, 0, 0.25] : [0];
       for (const o of spread) f.eb.push({ x: e.x, y: e.y, vx: Math.cos(a + o) * 240, vy: Math.sin(a + o) * 240, life: 4 });
       e.fire = rand(1.4, 2.6) * pace() * (e.type === 'gunship' ? 1.3 : 1); audio.tone(300, 0.06, 'square', 0.06); }
     for (const b of f.bul) if (!b.dead && Math.hypot(b.x - e.x, b.y - e.y) < d.r) { b.dead = true; e.hp--; burst(b.x, b.y, C.hot, 5, 100, 0.25); if (e.hp <= 0) { e.dead = true; break; } }
-    if (!e.dead && Math.hypot(s.x - e.x, s.y - e.y) < d.r + 6) { e.dead = true; hurt(s.x, s.y); }
+    if (!e.dead && run.inv <= 0 && Math.hypot(s.x - e.x, s.y - e.y) < d.r + 6) { e.dead = true; hurt(s.x, s.y); }
     if (e.dead) { f.killed++; run.salvage += d.val; run.kills++; burst(e.x, e.y, C.hot, e.type === 'gunship' ? 36 : 22, 260); floatText(e.x, e.y - 18, '+' + d.val, C.loot); shake = Math.max(shake, e.type === 'gunship' ? 9 : 5); sfx.pop(); }
   }
   f.en = f.en.filter(e => !e.dead);
@@ -709,7 +715,7 @@ const MODS = [
 const modPanel = document.getElementById('pMod'), modBox = document.getElementById('mChoices');
 function openTerminal(term) {
   term.used = true;
-  const pool = MODS.filter(m => !run.mods[m.k] && !(m.k === 'desperate' && run.shield <= 1) && !(m.k === 'jammer' && M.lock && M.armed));
+  const pool = MODS.filter(m => !run.mods[m.k] && !(m.k === 'desperate' && run.shield <= 1) && !(m.k === 'jammer' && M.lock));
   for (let i = pool.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [pool[i], pool[j]] = [pool[j], pool[i]]; }
   const choices = pool.slice(0, 3); if (!choices.length) return;
   M.picking = choices; sfx.pick();
@@ -806,7 +812,7 @@ function updMaze(dt) {
   M.tb = M.tb.filter(b => b.life > 0);
   // crates
   if (run.mods.magnet) for (const c of M.crates) { if (c.got) continue; const dx = pcx - (c.x + 12), dy = pcy - (c.y + 10);
-    if (Math.hypot(dx, dy) < 130) { const k = Math.min(1, dt * 5); c.x += dx * k; c.y += dy * k; } }
+    if (Math.hypot(dx, dy) < 130 && los(c.x + 12, c.y + 10, pcx, pcy)) { const k = Math.min(1, dt * 5); c.x += dx * k; c.y += dy * k; } }
   for (const c of M.crates) if (!c.got && overlap(p, c)) { c.got = true; if (run.mods.magnet) c.v = Math.round(c.v * 1.25); run.salvage += c.v; burst(c.x + 12, c.y + 10, C.loot, 18, 180); floatText(c.x + 12, c.y - 10, `+${c.v}`, C.loot); sfx.pick(); }
   // crew
   for (const cr of M.crews) { cr.msgT = Math.max(0, cr.msgT - dt);
@@ -968,7 +974,7 @@ function hudCommon() {
   ctx.fillText(`SALVAGE ${run.salvage}${run.mult > 1 ? ' ×2' : ''}`, 16, 70);
   ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillText(`STATION ${run.n}`, W - 16, 30);
   if (mode === 'maze') { const cap = stats().crewCap; ctx.fillStyle = M.carried.length ? C.loot : C.dim;
-    ctx.fillText(`CREW ${M.carried.length}/${cap} · ${M.crews.length} ABOARD STATION`, W - 16, 50); }
+    ctx.fillText(`CREW ${M.carried.length}/${cap} · ${M.crews.filter(c => c.state === 'waiting').length} ABOARD STATION`, W - 16, 50); }
 }
 function drawMinimap() {
   const cs = Math.max(6, Math.min(14, Math.floor(150 / M.cols))), x0 = W - 16 - M.cols * cs, y0 = 64;
@@ -1066,6 +1072,7 @@ function renderHub() {
 }
 function buy(i) { const u = UPS[i], lvl = save.up[u.k]; if (lvl >= u.cost.length || save.salvage < u.cost[lvl]) return;
   save.salvage -= u.cost[lvl]; save.up[u.k]++; persist(); sfx.pick(); renderHub();
+  { const nb = document.getElementById('buy-' + u.k); (nb && !nb.disabled ? nb : document.getElementById('bLaunch')).focus({ preventScroll: true }); }
   const sp = hangarShip(); burst(sp.x, sp.y - 20, C.loot, 30, 260, 0.9); burst(sp.x, sp.y - 20, C.line, 16, 160, 0.7); flash = 0.15; say('buy', true); }
 let revealTok = 0;
 function toHub() { revealTok++; mode = 'hub'; renderHub(); showPanel('hub'); syncMusicBtn();
@@ -1182,7 +1189,7 @@ function update(dt) {
   if (hit('music')) { audio.init(); music.toggle(); }
   tracks.update(dt);
   if ((mode === 'fly' || mode === 'maze') && hit('pause') && !run.over) paused = !paused;
-  music.set(mode === 'fly' ? (fly.docking ? 'explore' : 'fight') : mode === 'maze' ? (run.over ? null : M.armed ? 'countdown' : M.lock ? 'lockdown' : 'explore') : mode === 'outro' ? null : 'hangar');
+  music.set(mode === 'fly' ? (run.over ? null : fly.docking ? 'explore' : 'fight') : mode === 'maze' ? (run.over ? null : M.armed ? 'countdown' : M.lock ? 'lockdown' : 'explore') : mode === 'outro' ? null : 'hangar');
   if (paused) return;
   if (mode === 'fly') updFly(dt); else if (mode === 'maze') updMaze(dt); else if (mode === 'outro') updOutro(dt);
   updFx(dt);
