@@ -88,6 +88,21 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 @media (pointer:coarse){#touch{display:flex}}
 @media (prefers-reduced-motion:reduce){h1{text-shadow:none}}
 #pGate{background:transparent;cursor:pointer}
+.board{width:min(440px,100%);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:10px}
+.gate .board{background:var(--glass);border:1px solid rgba(70,241,255,.35);padding:14px 18px;text-align:left}
+.board ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:auto 1fr auto auto;gap:5px 14px;align-items:baseline}
+.board li{display:contents}
+.board .rk{color:var(--dim)}
+.board .nm{color:var(--line);letter-spacing:.25em}
+.board .st{color:var(--dim);font-size:12px}
+.board .sc{color:var(--loot);text-align:right}
+.board li.me .nm,.board li.me .sc{color:var(--core)}
+.board .msg{color:var(--dim);font-size:13px}
+#rForm{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--core);padding:12px;box-shadow:0 0 14px rgba(255,182,39,.25)}
+#rForm label{color:var(--core);letter-spacing:.12em;font-size:13px;flex-basis:100%}
+#rName{font-family:var(--font-display);font-size:24px;width:6ch;text-transform:uppercase;letter-spacing:.3em;text-align:center;
+  background:transparent;color:var(--core);border:1px solid var(--core);padding:6px 4px}
+#rName:focus{outline:2px solid var(--core);outline-offset:2px}
 .gate{display:flex;flex-direction:column;align-items:center;gap:28px;text-align:center}
 .gate h1{font-size:clamp(36px,9vw,72px)}
 #bGate{background:transparent;color:var(--core);border:1px solid var(--core);font-size:18px;letter-spacing:.2em;padding:14px 22px;animation:gateBlink 1.1s steps(2,start) infinite}
@@ -102,11 +117,11 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
   <canvas id="cv" aria-label="Reactor Run game screen"></canvas>
 
   <section class="panel" id="pGate">
-    <div class="gate"><h1>REACTOR RUN</h1><button id="bGate" type="button">▶ PRESS ANY KEY</button></div>
+    <div class="gate"><h1>REACTOR RUN</h1><button id="bGate" type="button">▶ PRESS ANY KEY</button><div class="board" id="gBoard"></div></div>
   </section>
   <section class="panel" id="pTitle" hidden>
     <div class="card">
-      <div class="eyebrow">Prototype · build 0.5</div>
+      <div class="eyebrow">Prototype · build 0.6</div>
       <h1>REACTOR RUN</h1>
       <p class="tag">Fly in. Blow the core. Get out alive.</p>
       <p>Knock out the station's fighters to drop its docking shield, then fly into the bay. Find the reactor, arm it, and race the blast wave back to your ship. Corridors collapse from the core outward, so every detour costs you.</p>
@@ -133,7 +148,7 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
       <div class="stats" id="hStats"></div>
       <div class="actions">
         <button id="bLaunch" type="button">Launch ⏎</button>
-        <span class="ghostrow"><button id="bMusic" class="ghost" type="button">Music on · M</button><button id="bReset" class="ghost" type="button">Reset progress</button></span>
+        <span class="ghostrow"><button id="bBoard" class="ghost" type="button">Top 10 · T</button><button id="bMusic" class="ghost" type="button">Music on · M</button><button id="bReset" class="ghost" type="button">Reset progress</button></span>
       </div>
     </div>
   </section>
@@ -144,8 +159,18 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
       <div class="headrow"><h2 id="rHead">ESCAPED</h2><span class="stamp" id="rStamp" hidden>NEW RECORD</span></div>
       <p id="rReason" class="stats"></p>
       <div class="rows" id="rRows"></div>
+      <form id="rForm" hidden><label for="rName">TOP 10 SCORE! ENTER YOUR INITIALS</label><input id="rName" maxlength="3" autocomplete="off" spellcheck="false" inputmode="text"><button type="submit">Submit</button></form>
       <p class="vega" id="rVega"></p>
       <div class="actions"><button id="bBack" type="button">Back to hangar ⏎</button></div>
+    </div>
+  </section>
+
+  <section class="panel" id="pBoard" hidden>
+    <div class="card">
+      <div class="eyebrow">Top 10 · all pilots</div>
+      <div class="board" id="hBoard"></div>
+      <p class="stats" id="bMine"></p>
+      <div class="actions"><button id="bBoardBack" type="button">Back to hangar ⏎</button></div>
     </div>
   </section>
 
@@ -185,7 +210,7 @@ addEventListener('resize', resize); resize();
 
 /* ---------- save (per-browser convenience) ---------- */
 const SAVE_KEY = 'reactor-run-save-v1';
-const freshSave = () => ({ salvage: 0, up: { shield: 0, fuel: 0, thrust: 0, fuse: 0, crew: 0, scan: 0 }, runs: 0, escapes: 0, best: 0, hints: {}, crewTotal: 0, bestLeft: null, music: true });
+const freshSave = () => ({ salvage: 0, up: { shield: 0, fuel: 0, thrust: 0, fuse: 0, crew: 0, scan: 0 }, runs: 0, escapes: 0, best: 0, hints: {}, crewTotal: 0, bestLeft: null, music: true, bestScore: 0, name: '', won: false, myIds: [] });
 let save = freshSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.up) save = Object.assign(freshSave(), s, { up: Object.assign(freshSave().up, s.up), hints: Object.assign({}, s.hints || {}) }); } catch (e) {}
 function hintOnce(key) { if (save.hints[key]) return false; save.hints[key] = 1; persist(); return true; }
@@ -194,13 +219,18 @@ const stats = () => ({ maxShield: 3 + save.up.shield, thrustMul: 1 + 0.08 * save
   fuel: 2.4 + 0.5 * save.up.fuel, crewCap: 1 + save.up.crew, scan: save.up.scan });
 const tier = () => save.escapes; // difficulty driver
 function stationSize() { const e = tier(); return { cols: 4 + Math.min(4, Math.floor(e / 2)), rows: 3 + Math.min(3, Math.floor(e / 3)) }; }
-const pace = () => Math.max(0.55, 1 - tier() * 0.04); // multiplies enemy fire cooldowns
+const FINALE_AT = 24; // escapes needed to unlock the final station
+const isFinale = () => !save.won && save.escapes >= FINALE_AT;
+const heat = () => save.won ? Math.max(0, save.escapes - FINALE_AT) : 0; // endless mode: rises every escape after the win
+const pace = () => Math.max(0.35, Math.max(0.55, 1 - tier() * 0.04) * Math.pow(0.97, heat())); // multiplies enemy fire cooldowns
+const scoreMul = (final) => (1 + 0.1 * Math.min(tier(), FINALE_AT) + 0.25 * heat()) * (final ? 3 : 1);
 
 /* ---------- input ---------- */
 const keys = new Set(), pressed = new Set();
 const KEYMAP = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
-  Space:'fire', KeyJ:'fire', KeyE:'act', KeyQ:'alt', Enter:'ok', NumpadEnter:'ok', KeyP:'pause', Escape:'pause', Digit1:'u1', Digit2:'u2', Digit3:'u3', Digit4:'u4', Digit5:'u5', Digit6:'u6', KeyM:'music' };
+  Space:'fire', KeyJ:'fire', KeyE:'act', KeyQ:'alt', Enter:'ok', NumpadEnter:'ok', KeyP:'pause', Escape:'pause', Digit1:'u1', Digit2:'u2', Digit3:'u3', Digit4:'u4', Digit5:'u5', Digit6:'u6', KeyM:'music', KeyT:'board' };
 addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT') return; // typing initials
   const k = KEYMAP[e.code]; if (!k) return;
   const btn = e.target && e.target.tagName === 'BUTTON' && e.target.offsetParent !== null;
   if (btn && (k === 'ok' || k === 'fire')) return; // let the focused button click itself
@@ -381,6 +411,8 @@ const LINES = {
   death: ["Signal lost. Recovering what I can.", "Salvage drone is sweeping for scraps. Again.", "Well. That was educational."],
   buy: ["Upgrade installed. I'd hug you if I had arms.", "Shiny. Try not to scratch it.", "Installed. Your odds went from bad to less bad."],
   hangar: ["Hangar's quiet. Too quiet. Let's go blow something up.", "Crew is restless. So am I.", "Ready when you are, pilot."],
+  finalStart: ["This is it. The last reactor in the sector. Make it loud.", "Final station. Everything they have is out there. So are we."],
+  won: ["That's the last one. The sector's free. I'm... proud of you?", "Campaign complete. I'm framing this telemetry."],
   poor: ["Salvage is thin. Greed is a virtue out there.", "We're broke. Grab a crate or two next time."]
 };
 let comm = null, commCD = 0;
@@ -462,12 +494,12 @@ function drawStars(ox, oy) {
 
 /* ---------- state ---------- */
 let mode = 'gate', paused = false, run = null, fly = null, M = null, clock = 0;
-const panels = { gate: document.getElementById('pGate'), title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult') };
+const panels = { gate: document.getElementById('pGate'), title: document.getElementById('pTitle'), hub: document.getElementById('pHub'), result: document.getElementById('pResult'), board: document.getElementById('pBoard') };
 function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name; if (!name && document.activeElement) document.activeElement.blur(); const b = name && panels[name].querySelector('button'); if (b) b.focus({ preventScroll: true }); }
 
 function startRun() {
   const st = stats();
-  run = { n: save.runs + 1, salvage: 0, shield: st.maxShield, maxShield: st.maxShield, crew: 0, mult: 1, inv: 0, over: null, kills: 0, mods: {}, modList: [] };
+  run = { n: save.runs + 1, salvage: 0, shield: st.maxShield, maxShield: st.maxShield, crew: 0, mult: 1, inv: 0, over: null, kills: 0, mods: {}, modList: [], final: isFinale(), heat: heat() };
   parts = []; texts = []; paused = false; banner = null;
   showPanel(null); tracks.preload('lockdown', 'explore', 'countdown'); startFly();
 }
@@ -488,9 +520,10 @@ const FW = 2150, FH = 700, SX = 1720, BAY0 = 300, BAY1 = 400;
 function startFly() {
   mode = 'fly';
   fly = { t: 0, s: { x: 140, y: 350, vx: 0, vy: 0 }, bul: [], eb: [], en: [], cd: 0, spawnT: 1.2,
-    need: Math.min(20, 5 + 2 * tier()), maxAlive: Math.min(7, 2 + Math.floor(tier() / 2)), killed: 0, cam: { x: 0, y: FH / 2 }, scale: 1, docking: 0, zap: 0, wasUp: true };
+    need: run.final ? 25 : Math.min(20 + run.heat, 5 + 2 * tier()), maxAlive: run.final ? 8 : Math.min(7 + Math.floor(run.heat / 3), 2 + Math.floor(tier() / 2)), killed: 0, cam: { x: 0, y: FH / 2 }, scale: 1, docking: 0, zap: 0, wasUp: true };
+  if (run.final) { say('finalStart', true); showBanner('FINAL STATION', C.hot, `Destroy ${fly.need} fighters. Then end this.`, 3); return; }
   say('runStart', true);
-  showBanner(`DESTROY ${fly.need} FIGHTERS`, C.hot, hintOnce('fly') ? 'That drops the docking shield. Space to fire.' : '', 2.4);
+  showBanner(`DESTROY ${fly.need} FIGHTERS`, C.hot, hintOnce('fly') ? 'That drops the docking shield. Space to fire.' : run.heat ? `Heat ${run.heat} · score ×${scoreMul(false).toFixed(2)}` : '', 2.4);
 }
 const ETYPES = {
   dart:    { hp: 1, r: 18, val: 5,  spd: [110, 170] },
@@ -646,13 +679,13 @@ function buildStation() {
   for (const c of deadEnds) crates.push({ x: cellX(c) + 9 * T, y: floorY(c) - 20, w: 24, h: 20, v: crateVal() + 8, cell: c });
   for (let i = 0; i < n; i++) if (i !== start && i !== reactor && deg(i) > 1 && Math.random() < 0.22) crates.push({ x: cellX(i) + 9 * T, y: floorY(i) - 20, w: 24, h: 20, v: crateVal(), cell: i });
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const crewCount = Math.min(4, 1 + Math.floor(n / 7));
+  const crewCount = run.final ? 4 : Math.min(4, 1 + Math.floor(n / 7));
   const others = []; for (let i = 0; i < n; i++) if (i !== start && i !== reactor && !deadEnds.includes(i)) others.push(i);
   const crewCells = shuffle(deadEnds.slice()).concat(shuffle(others)).slice(0, crewCount);
   const crews = crewCells.map(c => ({ x: cellX(c) + 2.5 * T, y: floorY(c) - 22, w: 12, h: 22, state: 'waiting', cell: c, msgT: 0, face: 1 }));
   const termCount = n >= 20 ? 2 : 1, termPool = shuffle(others.filter(c => !crewCells.includes(c)).concat(shuffle(deadEnds.filter(c => !crewCells.includes(c)))));
   const terminals = termPool.slice(0, termCount).map(c => ({ x: cellX(c) + 6 * T - 14, y: cellY(c) + CH * T / 2 - 4, w: 28, h: 34, used: false, cell: c }));
-  const tChance = 0.3 + 0.06 * Math.min(8, tier());
+  const tChance = 0.3 + 0.06 * Math.min(8, tier()) + (run.final ? 0.15 : 0) + 0.02 * Math.min(10, run.heat);
   for (let i = 0; i < n; i++) { if (i === start || dS[i] < 2 || Math.random() > tChance) continue;
     const col = Math.random() < 0.5 ? 2.5 : 9.5; turrets.push({ x: cellX(i) + col * T, y: cellY(i) + T, hp: 3, cd: rand(1, 2), ang: Math.PI / 2, cell: i }); }
   // pre-render walls
@@ -679,7 +712,7 @@ function startMaze() {
   M = buildStation();
   M.p = { x: M.ship.x + M.ship.w + 12, y: M.ship.y + 40 - 23, w: 14, h: 22, vx: 0, vy: 0, face: 1, onGround: false, thrust: false, fuel: stats().fuel, sputT: 0 };
   M.carried = []; M.drones = []; M.lock = false; M.alert = 0; M.droneT = 0;
-  M.alertMax = Math.max(30, 35 + M.n * 1.5 - Math.min(15, tier() * 1.5));
+  M.alertMax = Math.max(run.final ? 25 : 30, (35 + M.n * 1.5 - Math.min(15, tier() * 1.5)) * (run.final ? 0.6 : 1) - 1.5 * Math.min(10, run.heat));
   M.picking = null; M.reactorHinted = false; M.warned = false; M.lastSec = -1;
   say('dock', true);
   const firstDock = hintOnce('dock');
@@ -755,17 +788,17 @@ function updDrones(dt, pcx, pcy) {
     if (M.alert >= M.alertMax) lockdown(); }
   if (M.lock) {
     M.droneT -= dt;
-    const maxAlive = Math.min(6, 2 + Math.floor(tier() / 3));
+    const maxAlive = Math.min(6 + Math.floor(run.heat / 4), 2 + Math.floor(tier() / 3) + (run.final ? 1 : 0));
     if (M.droneT <= 0 && M.drones.length < maxAlive) {
       const pc = cellOf(pcx, pcy), pcx0 = pc % M.cols, pcy0 = (pc / M.cols) | 0, pool = [];
       for (let i = 0; i < M.n; i++) { const dx = Math.abs(i % M.cols - pcx0), dy = Math.abs(((i / M.cols) | 0) - pcy0);
         if (dx + dy >= 2 && !M.collapsed[i]) pool.push(i); }
       if (pool.length) { const c = pool[(Math.random() * pool.length) | 0], x = M.cellX(c) + CW * T / 2, y = M.cellY(c) + CH * T / 2;
         M.drones.push({ x, y, vx: 0, vy: 0, hp: 2, ph: rand(0, 6) }); burst(x, y, C.hot, 12, 140, 0.5); }
-      M.droneT = Math.max(3.5, 9 - tier() * 0.4);
+      M.droneT = Math.max(run.final ? 2.8 : 3.5 - 0.1 * Math.min(10, run.heat), 9 - tier() * 0.4);
     }
   }
-  const spd = (70 + 6 * Math.min(10, tier())) * (run.mods.ghost ? 0.65 : 1);
+  const spd = (70 + 6 * Math.min(10, tier()) + 4 * Math.min(15, run.heat) + (run.final ? 15 : 0)) * (run.mods.ghost ? 0.65 : 1);
   for (const d of M.drones) {
     const dx = pcx - d.x, dy = pcy - d.y, dist = Math.hypot(dx, dy) || 1, k = Math.min(1, dt * 1.8);
     d.vx += (dx / dist * spd - d.vx) * k; d.vy += (dy / dist * spd - d.vy) * k;
@@ -986,7 +1019,7 @@ function hudCommon() {
     if (i < run.shield) { ctx.globalAlpha = 0.35; ctx.fill(); } ctx.restore(); }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.loot;
   ctx.fillText(`SALVAGE ${run.salvage}${run.mult > 1 ? ' ×2' : ''}`, 16, 70);
-  ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillText(`STATION ${run.n}`, W - 16, 30);
+  ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillText(run.final ? 'FINAL STATION' : run.heat ? `STATION ${run.n} · HEAT ${run.heat}` : `STATION ${run.n}`, W - 16, 30);
   if (mode === 'maze') { const cap = stats().crewCap; ctx.fillStyle = M.carried.length ? C.loot : C.dim;
     ctx.fillText(`CREW ${M.carried.length}/${cap} · ${M.crews.filter(c => c.state === 'waiting').length} ABOARD STATION`, W - 16, 50); }
 }
@@ -1080,8 +1113,9 @@ function renderHub() {
     b.textContent = max ? 'Maxed' : `Buy · ${cost}`; b.disabled = max || save.salvage < cost; b.onclick = () => buy(i);
     row.appendChild(b); box.appendChild(row); });
   const { cols, rows } = stationSize();
-  document.getElementById('hStats').textContent = `Runs ${save.runs} · Escapes ${save.escapes} · Best haul ${save.best} · Next station ${cols}×${rows} sections`;
-  document.getElementById('bLaunch').textContent = `Launch station ${save.runs + 1} ⏎`;
+  const next = isFinale() ? 'Next: FINAL STATION (score ×3)' : save.won ? `Endless · heat ${heat()} · score ×${scoreMul(false).toFixed(2)}` : `Final station in ${FINALE_AT - save.escapes} escapes`;
+  document.getElementById('hStats').textContent = `Runs ${save.runs} · Escapes ${save.escapes} · Best score ${save.bestScore || 0} · ${next}`;
+  document.getElementById('bLaunch').textContent = isFinale() ? 'Launch FINAL STATION ⏎' : `Launch station ${save.runs + 1} ⏎`;
   resetArmed = false; document.getElementById('bReset').textContent = 'Reset progress';
 }
 function buy(i) { const u = UPS[i], lvl = save.up[u.k]; if (lvl >= u.cost.length || save.salvage < u.cost[lvl]) return;
@@ -1093,7 +1127,7 @@ function toHub() { revealTok++; mode = 'hub'; renderHub(); showPanel('hub'); syn
   if (save.salvage < 40 && save.runs > 0) say('poor'); else say('hangar'); }
 function showResult() {
   const o = run.over, rows = [];
-  let total, vega, stamps = [];
+  let total, vega, stamps = [], score = 0;
   if (o.win) {
     const coreMul = run.mods.overcore ? 1.5 : 1, base = Math.round(run.salvage * run.mult * coreMul), crew = M.carried.length * 40, photo = o.left < 3 ? Math.round(30 + (3 - o.left) * 40) : 0;
     total = base + crew + photo;
@@ -1104,10 +1138,21 @@ function showResult() {
     if (run.modList.length) rows.push(['Power-ups', run.modList.join(', ')]);
     rows.push(['Time left on the fuse', o.left.toFixed(2) + 's']);
     if (save.bestLeft === null || o.left < save.bestLeft) { if (save.bestLeft !== null) stamps.push('CLOSEST CALL'); save.bestLeft = o.left; }
+    const mul = scoreMul(run.final); score = Math.round(total * mul);
+    rows.push(['Banked salvage', total]);
+    rows.push([run.final ? `Final station ×3 · difficulty ×${(mul / 3).toFixed(2)}` : `Station difficulty ×${mul.toFixed(2)}`, '']);
     save.escapes++; save.crewTotal = (save.crewTotal || 0) + M.carried.length;
-    document.getElementById('rHead').textContent = 'ESCAPED'; document.getElementById('rHead').className = 'win';
-    document.getElementById('rReason').textContent = o.left < 1 ? 'That was way too close. Do it again.' : 'The station is debris. Your hold is full.';
-    vega = pickLine(o.left < 1 ? 'escapeClose' : 'escape');
+    if (score > (save.bestScore || 0)) { if (save.bestScore) stamps.unshift('PERSONAL BEST'); save.bestScore = score; }
+    document.getElementById('rHead').className = 'win';
+    if (run.final) { save.won = true; stamps.unshift('CAMPAIGN COMPLETE');
+      document.getElementById('rHead').textContent = 'YOU WON';
+      document.getElementById('rReason').textContent = 'The last reactor is gone and the sector is free. Endless mode unlocked: every station from here runs hotter and scores higher.';
+      vega = pickLine('won');
+    } else {
+      document.getElementById('rHead').textContent = 'ESCAPED';
+      document.getElementById('rReason').textContent = o.left < 1 ? 'That was way too close. Do it again.' : 'The station is debris. Your hold is full.';
+      vega = pickLine(o.left < 1 ? 'escapeClose' : 'escape');
+    }
   } else {
     total = Math.round(run.salvage * 0.4);
     rows.push(['Salvage collected', run.salvage], ['Recovered by the salvage drone (40%)', total]);
@@ -1115,17 +1160,16 @@ function showResult() {
     document.getElementById('rReason').textContent = o.reason;
     vega = pickLine('death');
   }
-  rows.push(['Banked', total]);
-  if (total > save.best && save.runs > 0) stamps.unshift('NEW RECORD');
+  rows.push(o.win ? ['SCORE', score] : ['Banked', total]);
   save.salvage += total; save.runs++; save.best = Math.max(save.best, total); persist();
   document.getElementById('rEyebrow').textContent = `Debrief · station ${run.n}`;
   const vg = document.getElementById('rVega'); vg.innerHTML = ''; const vb = document.createElement('b'); vb.textContent = 'VEGA · SHIP AI'; vg.append(vb, document.createTextNode(vega)); vg.hidden = true;
   mode = 'result'; showPanel('result'); comm = null;
-  revealRows(rows, total, stamps);
+  revealRows(rows, o.win ? score : total, stamps, o.win ? () => offerScore(score) : null);
 }
-function revealRows(rows, total, stamps) {
+function revealRows(rows, total, stamps, after) {
   const box = document.getElementById('rRows'), stamp = document.getElementById('rStamp'), vg = document.getElementById('rVega'), tok = ++revealTok;
-  box.innerHTML = ''; stamp.hidden = true;
+  box.innerHTML = ''; stamp.hidden = true; document.getElementById('rForm').hidden = true;
   const mk = (cls, txt) => { const e = document.createElement('span'); e.className = cls; e.textContent = txt; return e; };
   rows.forEach((r, i) => setTimeout(() => {
     if (tok !== revealTok) return;
@@ -1134,6 +1178,7 @@ function revealRows(rows, total, stamps) {
     if (last) countUp(v, total, tok, () => {
       vg.hidden = false; audio.tone(1500, 0.03, 'square', 0.04);
       if (stamps.length) setTimeout(() => { if (tok !== revealTok) return; stamp.textContent = stamps.join(' · '); stamp.hidden = false; audio.noise(0.2, 0.4, 2000); sfx.win(); shake = 6; }, 250);
+      if (after) setTimeout(() => { if (tok === revealTok) after(); }, 450);
     });
   }, 300 + i * 300));
 }
@@ -1144,6 +1189,56 @@ function countUp(el, target, tok, done) {
     if (k < 1) requestAnimationFrame(step); else done(); };
   requestAnimationFrame(step);
 }
+/* ================= TOP 10 (shared, via scores.php) ================= */
+const LB_URL = 'scores.php';
+const lb = { list: null, err: false, pending: null };
+function renderBoards() {
+  for (const el of document.querySelectorAll('.board')) {
+    el.innerHTML = '';
+    const head = document.createElement('div'); head.className = 'eyebrow'; head.textContent = 'Top 10'; if (el.id === 'gBoard') el.append(head);
+    if (lb.err && !lb.list) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'Leaderboard offline right now.'; el.append(m); continue; }
+    if (!lb.list) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'Loading scores…'; el.append(m); continue; }
+    if (!lb.list.length) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'No scores yet. Be the first.'; el.append(m); continue; }
+    const ol = document.createElement('ol');
+    lb.list.forEach((e, i) => { const li = document.createElement('li'); if ((save.myIds || []).includes(e.id)) li.className = 'me';
+      const cell = (c, t) => { const sp = document.createElement('span'); sp.className = c; sp.textContent = t; li.append(sp); };
+      cell('rk', '#' + (i + 1)); cell('nm', e.name); cell('st', e.final ? 'FINAL' : 'STN ' + e.station); cell('sc', e.score.toLocaleString()); ol.append(li); });
+    el.append(ol);
+  }
+  const mine = document.getElementById('bMine'); if (mine) mine.textContent = `Your best score: ${(save.bestScore || 0).toLocaleString()}`;
+}
+async function lbFetch() {
+  try { const r = await fetch(LB_URL + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; const j = await r.json(); lb.list = j.scores || []; lb.err = false; }
+  catch (e) { lb.err = true; }
+  renderBoards();
+}
+const qualifies = sc => sc > 0 && (!lb.list || lb.list.length < 10 || sc > lb.list[lb.list.length - 1].score);
+function offerScore(sc) {
+  if (!qualifies(sc)) return;
+  lb.pending = { name: '', score: sc, station: run.n, crew: M.carried.length, final: !!run.final };
+  const f = document.getElementById('rForm'), inp = document.getElementById('rName');
+  f.hidden = false; inp.value = save.name || ''; inp.focus(); inp.select();
+}
+document.getElementById('rName').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
+document.getElementById('rForm').addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target, inp = document.getElementById('rName'), name = inp.value.trim();
+  if (!name || !lb.pending) { inp.focus(); return; }
+  save.name = name; persist(); f.querySelector('button').disabled = true;
+  const label = f.querySelector('label');
+  try {
+    const r = await fetch(LB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...lb.pending, name }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'failed');
+    lb.list = j.scores; lb.err = false; lb.pending = null;
+    if (j.id) { save.myIds = (save.myIds || []).concat(j.id).slice(-50); persist(); }
+    f.hidden = true; renderBoards(); sfx.win();
+    const stamp = document.getElementById('rStamp'); stamp.textContent = j.rank ? `#${j.rank} ON THE TOP 10` : 'SCORE SENT'; stamp.hidden = false;
+    document.getElementById('bBack').focus({ preventScroll: true });
+  } catch (err) { label.textContent = `Couldn't send the score (${err.message || 'offline'}). Try again?`; f.querySelector('button').disabled = false; inp.focus(); }
+});
+function openBoard() { mode = 'board'; showPanel('board'); renderBoards(); lbFetch(); }
+document.getElementById('bBoard').onclick = () => openBoard();
+document.getElementById('bBoardBack').onclick = () => toHub();
+renderBoards(); lbFetch();
 document.getElementById('bStart').onclick = () => { audio.init(); toHub(); };
 document.getElementById('bLaunch').onclick = () => { audio.init(); startRun(); };
 document.getElementById('bBack').onclick = () => toHub();
@@ -1151,7 +1246,7 @@ document.getElementById('bMusic').onclick = () => { audio.init(); music.toggle()
 document.getElementById('bReset').onclick = () => {
   const b = document.getElementById('bReset');
   if (!resetArmed) { resetArmed = true; b.textContent = 'Click again to wipe all progress'; return; }
-  const m = save.music; save = freshSave(); save.music = m; persist(); renderHub();
+  const m = save.music, nm = save.name, ids = save.myIds; save = freshSave(); save.music = m; save.name = nm; save.myIds = ids; persist(); renderHub();
 };
 
 /* ================= HANGAR SCENE ================= */
@@ -1198,7 +1293,8 @@ function drawHangar() {
 function update(dt) {
   clock += dt;
   if (mode === 'title' && hit('ok')) { toHub(); return; }
-  if (mode === 'hub') { if (hit('ok')) { startRun(); return; } for (let i = 0; i < UPS.length; i++) if (hit('u' + (i + 1))) buy(i); }
+  if (mode === 'hub') { if (hit('ok')) { startRun(); return; } if (hit('board')) { openBoard(); return; } for (let i = 0; i < UPS.length; i++) if (hit('u' + (i + 1))) buy(i); }
+  if (mode === 'board' && (hit('ok') || hit('board') || hit('pause'))) { toHub(); return; }
   if (mode === 'result' && hit('ok')) { toHub(); return; }
   if (hit('music')) { audio.init(); music.toggle(); }
   tracks.update(dt);
@@ -1214,7 +1310,7 @@ function render() {
   if (mode === 'fly') drawFly();
   else if (mode === 'maze') drawMaze();
   else if (mode === 'outro') drawOutro();
-  else if (mode === 'hub' || mode === 'result') { drawHangar(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawFx(); }
+  else if (mode === 'hub' || mode === 'result' || mode === 'board') { drawHangar(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawFx(); }
   else { drawStars(clock * 30, 0); ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(Math.min(W, H) / 220, Math.min(W, H) / 220); ctx.globalAlpha = 0.35; drawReactor(0, 0, false); ctx.restore(); ctx.globalAlpha = 1; }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0;
   if (mode === 'fly' || mode === 'maze' || mode === 'outro') drawBanner();
