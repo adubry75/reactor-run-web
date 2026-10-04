@@ -9,3 +9,6 @@
 <IfModule LiteSpeed>
   CacheLookup off
 </IfModule>
+
+# Hide the git history folder from the public
+RedirectMatch 404 /\.git
