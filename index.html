@@ -828,9 +828,9 @@ function updMaze(dt) {
   M.prompt = '';
   const dr = Math.hypot(pcx - M.rx, pcy - M.ry);
   if (!M.armed && dr < 260 && !M.reactorHinted) { M.reactorHinted = true; const first = hintOnce('reactor');
-    showBanner('REACTOR FOUND', C.core, first ? 'Fly up to it, then press E to arm, or Q to overclock for ×2 salvage' : '', first ? 3.8 : 1.6); say('reactorFound'); }
+    showBanner('REACTOR FOUND', C.core, first ? 'Touch it to arm. Hold Q as you touch it to overclock for ×2 salvage' : '', first ? 3.8 : 1.6); say('reactorFound'); }
   for (const tm of M.terminals) if (!tm.used && overlap(p, tm)) { openTerminal(tm); return; }
-  if (!M.armed && dr < 90) { M.prompt = 'reactor'; if (hit('act')) arm(false); else if (hit('alt')) arm(true); }
+  if (!M.armed && dr < 160) { M.prompt = 'reactor'; if (dr < 50) arm(down('alt')); } // touch to arm, hold Q to overclock
   if (!M.armed && overlap(p, M.ship)) M.prompt = 'ship';
   // countdown + blast wave
   if (M.armed) {
@@ -962,7 +962,7 @@ function drawMaze() {
   if (M.prompt && !run.over) {
     ctx.font = `15px ${FONT_UI}`; const y = H - (matchMedia('(pointer:coarse)').matches ? 96 : 32);
     if (M.prompt === 'reactor') { const a = fuseFor(false).toFixed(1), b = fuseFor(true).toFixed(1);
-      ctx.fillStyle = C.core; ctx.fillText(`[E] ARM · ${a}s fuse`, W / 2, y - 22); ctx.fillStyle = C.hot; ctx.fillText(`[Q] OVERCLOCK · ${b}s fuse · ×2 salvage`, W / 2, y); }
+      ctx.fillStyle = C.core; ctx.fillText(`TOUCH TO ARM · ${a}s fuse`, W / 2, y - 22); ctx.fillStyle = C.hot; ctx.fillText(`HOLD [Q] + TOUCH · OVERCLOCK · ${b}s fuse · ×2 salvage`, W / 2, y); }
     else { ctx.fillStyle = C.dim; ctx.fillText('Arm the reactor before you leave', W / 2, y); }
   }
 }
