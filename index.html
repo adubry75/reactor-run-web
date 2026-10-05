@@ -88,7 +88,8 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 @media (pointer:coarse){#touch{display:flex}}
 @media (prefers-reduced-motion:reduce){h1{text-shadow:none}}
 #pGate{background:transparent;cursor:pointer}
-.board{width:min(440px,100%);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:10px}
+.boards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:min(940px,100%)}
+.board{flex:1 1 300px;min-width:0;width:min(440px,100%);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:10px}
 .gate .board{background:var(--glass);border:1px solid rgba(70,241,255,.35);padding:14px 18px;text-align:left}
 .board ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:auto 1fr auto auto;gap:5px 14px;align-items:baseline}
 .board li{display:contents}
@@ -98,6 +99,11 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
 .board .sc{color:var(--loot);text-align:right}
 .board li.me .nm,.board li.me .sc{color:var(--core)}
 .board .msg{color:var(--dim);font-size:13px}
+.sal{color:var(--loot)}
+.camp{display:flex;flex-direction:column;gap:6px}
+.campbar{height:6px;background:rgba(70,241,255,.15);position:relative}
+.campbar i{position:absolute;inset:0 auto 0 0;background:var(--core);box-shadow:0 0 10px rgba(255,182,39,.6)}
+.camp .stats{color:var(--ink)}
 #rForm{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--core);padding:12px;box-shadow:0 0 14px rgba(255,182,39,.25)}
 #rForm label{color:var(--core);letter-spacing:.12em;font-size:13px;flex-basis:100%}
 #rName{font-family:var(--font-display);font-size:24px;width:6ch;text-transform:uppercase;letter-spacing:.3em;text-align:center;
@@ -117,13 +123,14 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
   <canvas id="cv" aria-label="Reactor Run game screen"></canvas>
 
   <section class="panel" id="pGate">
-    <div class="gate"><h1>REACTOR RUN</h1><button id="bGate" type="button">▶ PRESS ANY KEY</button><div class="board" id="gBoard"></div></div>
+    <div class="gate"><h1>REACTOR RUN</h1><button id="bGate" type="button">▶ PRESS ANY KEY</button><div class="boards"><div class="board" data-board="total" data-title="Top 10 · campaign total"></div><div class="board" data-board="station" data-title="Top 10 · best single station"></div></div></div>
   </section>
   <section class="panel" id="pTitle" hidden>
     <div class="card">
-      <div class="eyebrow">Prototype · build 0.6</div>
+      <div class="eyebrow">Prototype · build 0.7</div>
       <h1>REACTOR RUN</h1>
       <p class="tag">Fly in. Blow the core. Get out alive.</p>
+      <p><b>Destroy all 24 stations to win.</b> Every escape adds to your total score. You get 3 ships: lose them all and it's game over. Highest total takes the top 10.</p>
       <p>Knock out the station's fighters to drop its docking shield, then fly into the bay. Find the reactor, arm it, and race the blast wave back to your ship. Corridors collapse from the core outward, so every detour costs you.</p>
       <p>Don't linger. When the security sweep runs out, hunter drones come through the walls. Your jetpack only refuels when you're standing on something, and your crew bay starts with room for one survivor. Touch a glowing relay terminal to pick a power-up for the run.</p>
       <div class="keys">
@@ -143,7 +150,9 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
   <section class="panel" id="pHub" hidden>
     <div class="card">
       <div class="eyebrow">Hangar</div>
-      <div class="bank"><b id="hSalvage">0</b><span class="stats">salvage banked</span></div>
+      <div class="bank"><b id="hScore">0</b><span class="stats">total score</span></div>
+      <div class="camp"><div class="campbar"><i id="hBar"></i></div><span class="stats" id="hCamp"></span></div>
+      <div class="stats"><span class="sal" id="hSalvage">0</span> salvage to spend</div>
       <div class="ups" id="hUps"></div>
       <div class="stats" id="hStats"></div>
       <div class="actions">
@@ -166,9 +175,9 @@ button.mod .md{font-size:14px;line-height:1.45;color:var(--ink)}
   </section>
 
   <section class="panel" id="pBoard" hidden>
-    <div class="card">
+    <div class="card wide">
       <div class="eyebrow">Top 10 · all pilots</div>
-      <div class="board" id="hBoard"></div>
+      <div class="boards"><div class="board" data-board="total" data-title="Campaign total"></div><div class="board" data-board="station" data-title="Best single station"></div></div>
       <p class="stats" id="bMine"></p>
       <div class="actions"><button id="bBoardBack" type="button">Back to hangar ⏎</button></div>
     </div>
@@ -210,7 +219,7 @@ addEventListener('resize', resize); resize();
 
 /* ---------- save (per-browser convenience) ---------- */
 const SAVE_KEY = 'reactor-run-save-v1';
-const freshSave = () => ({ salvage: 0, up: { shield: 0, fuel: 0, thrust: 0, fuse: 0, crew: 0, scan: 0 }, runs: 0, escapes: 0, best: 0, hints: {}, crewTotal: 0, bestLeft: null, music: true, bestScore: 0, name: '', won: false, myIds: [] });
+const freshSave = () => ({ salvage: 0, up: { shield: 0, fuel: 0, thrust: 0, fuse: 0, crew: 0, scan: 0 }, runs: 0, escapes: 0, best: 0, hints: {}, crewTotal: 0, bestLeft: null, music: true, bestScore: 0, totalScore: 0, lives: 3, name: '', won: false, myIds: [] });
 let save = freshSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.up) save = Object.assign(freshSave(), s, { up: Object.assign(freshSave().up, s.up), hints: Object.assign({}, s.hints || {}) }); } catch (e) {}
 function hintOnce(key) { if (save.hints[key]) return false; save.hints[key] = 1; persist(); return true; }
@@ -219,11 +228,13 @@ const stats = () => ({ maxShield: 3 + save.up.shield, thrustMul: 1 + 0.08 * save
   fuel: 2.4 + 0.5 * save.up.fuel, crewCap: 1 + save.up.crew, scan: save.up.scan });
 const tier = () => save.escapes; // difficulty driver
 function stationSize() { const e = tier(); return { cols: 4 + Math.min(4, Math.floor(e / 2)), rows: 3 + Math.min(3, Math.floor(e / 3)) }; }
-const FINALE_AT = 24; // escapes needed to unlock the final station
-const isFinale = () => !save.won && save.escapes >= FINALE_AT;
-const heat = () => save.won ? Math.max(0, save.escapes - FINALE_AT) : 0; // endless mode: rises every escape after the win
-const pace = () => Math.max(0.35, Math.max(0.55, 1 - tier() * 0.04) * Math.pow(0.97, heat())); // multiplies enemy fire cooldowns
-const scoreMul = (final) => (1 + 0.1 * Math.min(tier(), FINALE_AT) + 0.25 * heat()) * (final ? 3 : 1);
+const STATIONS = 24; // the campaign: destroy 24 stations, the 24th is the finale
+const LIVES = 3; // ships per campaign
+const stationNo = () => Math.min(STATIONS, save.escapes + 1);
+const isFinale = () => !save.won && save.escapes >= STATIONS - 1;
+const heat = () => 0;
+const pace = () => Math.max(0.55, 1 - tier() * 0.04); // multiplies enemy fire cooldowns
+const scoreMul = (final) => (1 + 0.1 * Math.min(tier(), STATIONS)) * (final ? 3 : 1);
 
 /* ---------- input ---------- */
 const keys = new Set(), pressed = new Set();
@@ -499,7 +510,7 @@ function showPanel(name) { for (const k in panels) panels[k].hidden = k !== name
 
 function startRun() {
   const st = stats();
-  run = { n: save.runs + 1, salvage: 0, shield: st.maxShield, maxShield: st.maxShield, crew: 0, mult: 1, inv: 0, over: null, kills: 0, mods: {}, modList: [], final: isFinale(), heat: heat() };
+  run = { n: stationNo(), salvage: 0, shield: st.maxShield, maxShield: st.maxShield, crew: 0, mult: 1, inv: 0, over: null, kills: 0, mods: {}, modList: [], final: isFinale(), heat: heat() };
   parts = []; texts = []; paused = false; banner = null;
   showPanel(null); tracks.preload('lockdown', 'explore', 'countdown'); startFly();
 }
@@ -523,7 +534,7 @@ function startFly() {
     need: run.final ? 25 : Math.min(20 + run.heat, 5 + 2 * tier()), maxAlive: run.final ? 8 : Math.min(7 + Math.floor(run.heat / 3), 2 + Math.floor(tier() / 2)), killed: 0, cam: { x: 0, y: FH / 2 }, scale: 1, docking: 0, zap: 0, wasUp: true };
   if (run.final) { say('finalStart', true); showBanner('FINAL STATION', C.hot, `Destroy ${fly.need} fighters. Then end this.`, 3); return; }
   say('runStart', true);
-  showBanner(`DESTROY ${fly.need} FIGHTERS`, C.hot, hintOnce('fly') ? 'That drops the docking shield. Space to fire.' : run.heat ? `Heat ${run.heat} · score ×${scoreMul(false).toFixed(2)}` : '', 2.4);
+  showBanner(`DESTROY ${fly.need} FIGHTERS`, C.hot, hintOnce('fly') ? 'That drops the docking shield. Space to fire.' : `Station ${run.n} of ${STATIONS}`, 2.4);
 }
 const ETYPES = {
   dart:    { hp: 1, r: 18, val: 5,  spd: [110, 170] },
@@ -1000,11 +1011,11 @@ function drawMaze() {
   }
   // active power-ups
   if (run.modList.length) { ctx.textAlign = 'left'; ctx.font = `12px ${FONT_UI}`;
-    run.modList.forEach((nm, i) => { const m = MODS.find(x => x.name === nm); ctx.fillStyle = m && m.cursed ? C.hot : C.loot; ctx.fillText('◆ ' + nm, 16, 92 + i * 16); }); }
+    run.modList.forEach((nm, i) => { const m = MODS.find(x => x.name === nm); ctx.fillStyle = m && m.cursed ? C.hot : C.loot; ctx.fillText('◆ ' + nm, 16, 122 + i * 16); }); }
   // fuel gauge
-  { const st = stats(), fr = M.p.fuel / st.fuel, bw = 96; ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.strokeRect(16.5, 42.5, bw, 6);
-    ctx.fillStyle = fr < 0.25 ? C.red : C.core; ctx.fillRect(17, 43, (bw - 1) * fr, 5);
-    ctx.textAlign = 'left'; ctx.font = `11px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('FUEL', bw + 24, 49); }
+  { const st = stats(), fr = M.p.fuel / st.fuel, bw = 96; ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.strokeRect(16.5, 92.5, bw, 6);
+    ctx.fillStyle = fr < 0.25 ? C.red : C.core; ctx.fillRect(17, 93, (bw - 1) * fr, 5);
+    ctx.textAlign = 'left'; ctx.font = `11px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('FUEL', bw + 24, 99); }
   if (stats().scan >= 3) drawMinimap();
   if (M.prompt && !run.over) {
     ctx.font = `15px ${FONT_UI}`; const y = H - (matchMedia('(pointer:coarse)').matches ? 96 : 32);
@@ -1015,11 +1026,13 @@ function drawMaze() {
 }
 function hudCommon() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0;
-  for (let i = 0; i < run.maxShield; i++) { ctx.save(); ctx.translate(26 + i * 22, 26); glow(C.line, i < run.shield ? 8 : 0, 1.5); ctx.globalAlpha = i < run.shield ? 1 : 0.3; poly(6, 8, Math.PI / 6);
+  ctx.textAlign = 'left'; ctx.font = `11px ${FONT_UI}`; ctx.fillStyle = C.dim; ctx.fillText('SCORE', 16, 22);
+  ctx.font = `18px ${FONT_DISP}`; ctx.fillStyle = C.core; ctx.shadowColor = C.core; ctx.shadowBlur = 8; ctx.fillText((save.totalScore || 0).toLocaleString(), 62, 24); ctx.shadowBlur = 0;
+  for (let i = 0; i < run.maxShield; i++) { ctx.save(); ctx.translate(26 + i * 22, 50); glow(C.line, i < run.shield ? 8 : 0, 1.5); ctx.globalAlpha = i < run.shield ? 1 : 0.3; poly(6, 8, Math.PI / 6);
     if (i < run.shield) { ctx.globalAlpha = 0.35; ctx.fill(); } ctx.restore(); }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.font = `14px ${FONT_UI}`; ctx.fillStyle = C.loot;
-  ctx.fillText(`SALVAGE ${run.salvage}${run.mult > 1 ? ' ×2' : ''}`, 16, 70);
-  ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillText(run.final ? 'FINAL STATION' : run.heat ? `STATION ${run.n} · HEAT ${run.heat}` : `STATION ${run.n}`, W - 16, 30);
+  ctx.fillText(`SALVAGE ${run.salvage}${run.mult > 1 ? ' ×2' : ''}`, 16, 80);
+  ctx.textAlign = 'right'; ctx.fillStyle = C.dim; ctx.fillStyle = run.final ? C.hot : C.dim; ctx.fillText((run.final ? `FINAL STATION · ${STATIONS} / ${STATIONS}` : `STATION ${run.n} / ${STATIONS}`) + ` · SHIPS ${'▲'.repeat(Math.max(0, save.lives ?? LIVES))}`, W - 16, 30);
   if (mode === 'maze') { const cap = stats().crewCap; ctx.fillStyle = M.carried.length ? C.loot : C.dim;
     ctx.fillText(`CREW ${M.carried.length}/${cap} · ${M.crews.filter(c => c.state === 'waiting').length} ABOARD STATION`, W - 16, 50); }
 }
@@ -1113,9 +1126,11 @@ function renderHub() {
     b.textContent = max ? 'Maxed' : `Buy · ${cost}`; b.disabled = max || save.salvage < cost; b.onclick = () => buy(i);
     row.appendChild(b); box.appendChild(row); });
   const { cols, rows } = stationSize();
-  const next = isFinale() ? 'Next: FINAL STATION (score ×3)' : save.won ? `Endless · heat ${heat()} · score ×${scoreMul(false).toFixed(2)}` : `Final station in ${FINALE_AT - save.escapes} escapes`;
-  document.getElementById('hStats').textContent = `Runs ${save.runs} · Escapes ${save.escapes} · Best score ${save.bestScore || 0} · ${next}`;
-  document.getElementById('bLaunch').textContent = isFinale() ? 'Launch FINAL STATION ⏎' : `Launch station ${save.runs + 1} ⏎`;
+  document.getElementById('hScore').textContent = (save.totalScore || 0).toLocaleString();
+  document.getElementById('hBar').style.width = (100 * Math.min(STATIONS, save.escapes) / STATIONS) + '%';
+  document.getElementById('hCamp').textContent = save.won ? `CAMPAIGN COMPLETE · all ${STATIONS} stations destroyed` : isFinale() ? `FINAL STATION next · ${STATIONS} of ${STATIONS} · score ×3` : `Station ${stationNo()} of ${STATIONS} · destroy all ${STATIONS} to win`; document.getElementById('hCamp').textContent += ` · ships ${'▲'.repeat(Math.max(0, save.lives ?? LIVES))}`;
+  document.getElementById('hStats').textContent = `Runs ${save.runs} · Escapes ${save.escapes} · Best single station ${(save.bestScore || 0).toLocaleString()}`;
+  document.getElementById('bLaunch').textContent = save.won ? 'Start a new campaign ⏎' : isFinale() ? 'Launch FINAL STATION ⏎' : `Launch station ${stationNo()} / ${STATIONS} ⏎`;
   resetArmed = false; document.getElementById('bReset').textContent = 'Reset progress';
 }
 function buy(i) { const u = UPS[i], lvl = save.up[u.k]; if (lvl >= u.cost.length || save.salvage < u.cost[lvl]) return;
@@ -1127,7 +1142,7 @@ function toHub() { revealTok++; mode = 'hub'; renderHub(); showPanel('hub'); syn
   if (save.salvage < 40 && save.runs > 0) say('poor'); else say('hangar'); }
 function showResult() {
   const o = run.over, rows = [];
-  let total, vega, stamps = [], score = 0;
+  let total, vega, stamps = [], score = 0; campaignOver = false;
   if (o.win) {
     const coreMul = run.mods.overcore ? 1.5 : 1, base = Math.round(run.salvage * run.mult * coreMul), crew = M.carried.length * 40, photo = o.left < 3 ? Math.round(30 + (3 - o.left) * 40) : 0;
     total = base + crew + photo;
@@ -1144,9 +1159,10 @@ function showResult() {
     save.escapes++; save.crewTotal = (save.crewTotal || 0) + M.carried.length;
     if (score > (save.bestScore || 0)) { if (save.bestScore) stamps.unshift('PERSONAL BEST'); save.bestScore = score; }
     document.getElementById('rHead').className = 'win';
-    if (run.final) { save.won = true; stamps.unshift('CAMPAIGN COMPLETE');
-      document.getElementById('rHead').textContent = 'YOU WON';
-      document.getElementById('rReason').textContent = 'The last reactor is gone and the sector is free. Endless mode unlocked: every station from here runs hotter and scores higher.';
+    save.totalScore = (save.totalScore || 0) + score;
+    if (run.final) { save.won = true; campaignOver = true; stamps.unshift('CAMPAIGN COMPLETE');
+      document.getElementById('rHead').textContent = 'VICTORY';
+      document.getElementById('rReason').textContent = `All ${STATIONS} stations destroyed. The sector is free. Final score: ${save.totalScore.toLocaleString()}.`;
       vega = pickLine('won');
     } else {
       document.getElementById('rHead').textContent = 'ESCAPED';
@@ -1156,16 +1172,36 @@ function showResult() {
   } else {
     total = Math.round(run.salvage * 0.4);
     rows.push(['Salvage collected', run.salvage], ['Recovered by the salvage drone (40%)', total]);
-    document.getElementById('rHead').textContent = 'LOST WITH THE STATION'; document.getElementById('rHead').className = 'lose';
-    document.getElementById('rReason').textContent = o.reason;
+    save.lives = Math.max(0, (save.lives ?? LIVES) - 1);
+    document.getElementById('rHead').className = 'lose';
+    if (save.lives <= 0) { campaignOver = true; stamps.unshift('NO SHIPS LEFT');
+      document.getElementById('rHead').textContent = 'GAME OVER';
+      document.getElementById('rReason').textContent = `${o.reason} That was your last ship.`;
+    } else {
+      document.getElementById('rHead').textContent = 'SHIP LOST';
+      document.getElementById('rReason').textContent = `${o.reason} ${save.lives} ship${save.lives > 1 ? 's' : ''} left.`;
+    }
     vega = pickLine('death');
   }
-  rows.push(o.win ? ['SCORE', score] : ['Banked', total]);
+  if (o.win) rows.push(['Station score', '+' + score.toLocaleString()], [run.final ? 'FINAL SCORE' : 'TOTAL SCORE', save.totalScore]);
+  else if (campaignOver) rows.push(['Stations destroyed', `${save.escapes} of ${STATIONS}`], ['FINAL SCORE', save.totalScore || 0]);
+  else rows.push(['Banked', total], ['Ships left', save.lives], ['Total score', save.totalScore || 0]);
   save.salvage += total; save.runs++; save.best = Math.max(save.best, total); persist();
-  document.getElementById('rEyebrow').textContent = `Debrief · station ${run.n}`;
+  document.getElementById('rEyebrow').textContent = run.final ? `Debrief · final station` : `Debrief · station ${run.n} of ${STATIONS}`;
   const vg = document.getElementById('rVega'); vg.innerHTML = ''; const vb = document.createElement('b'); vb.textContent = 'VEGA · SHIP AI'; vg.append(vb, document.createTextNode(vega)); vg.hidden = true;
   mode = 'result'; showPanel('result'); comm = null;
-  revealRows(rows, o.win ? score : total, stamps, o.win ? () => offerScore(score) : null);
+  const finalTotal = save.totalScore || 0;
+  if (campaignOver) { // campaign ends (victory or out of ships): post the total, then start fresh from the title screen
+    const keep = { music: save.music, name: save.name, myIds: save.myIds, hints: save.hints, bestScore: save.bestScore };
+    save = Object.assign(freshSave(), keep); persist();
+  }
+  document.getElementById('bBack').textContent = campaignOver ? 'Continue ⏎' : 'Back to hangar ⏎';
+  revealRows(rows, rows[rows.length - 1][1], stamps, o.win || campaignOver ? () => offerScores(o.win ? score : 0, campaignOver ? finalTotal : 0) : null);
+}
+let campaignOver = false;
+function backFromResult() {
+  if (!campaignOver) return toHub();
+  campaignOver = false; revealTok++; mode = 'gate'; showPanel('gate'); lbFetch();
 }
 function revealRows(rows, total, stamps, after) {
   const box = document.getElementById('rRows'), stamp = document.getElementById('rStamp'), vg = document.getElementById('rVega'), tok = ++revealTok;
@@ -1191,57 +1227,71 @@ function countUp(el, target, tok, done) {
 }
 /* ================= TOP 10 (shared, via scores.php) ================= */
 const LB_URL = 'scores.php';
-const lb = { list: null, err: false, pending: null };
+const lb = { station: null, total: null, err: false, pending: [] };
 function renderBoards() {
   for (const el of document.querySelectorAll('.board')) {
-    el.innerHTML = '';
-    const head = document.createElement('div'); head.className = 'eyebrow'; head.textContent = 'Top 10'; if (el.id === 'gBoard') el.append(head);
-    if (lb.err && !lb.list) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'Leaderboard offline right now.'; el.append(m); continue; }
-    if (!lb.list) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'Loading scores…'; el.append(m); continue; }
-    if (!lb.list.length) { const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'No scores yet. Be the first.'; el.append(m); continue; }
+    const key = el.dataset.board, list = lb[key]; el.innerHTML = '';
+    const add = (tag, cls, txt) => { const e = document.createElement(tag); e.className = cls; e.textContent = txt; el.append(e); return e; };
+    add('div', 'eyebrow', el.dataset.title || 'Top 10');
+    if (!list) { add('div', 'msg', lb.err ? 'Leaderboard offline right now.' : 'Loading scores…'); continue; }
+    if (!list.length) { add('div', 'msg', key === 'total' ? `No champions yet. Beat all ${STATIONS} stations to get here.` : 'No scores yet. Be the first.'); continue; }
     const ol = document.createElement('ol');
-    lb.list.forEach((e, i) => { const li = document.createElement('li'); if ((save.myIds || []).includes(e.id)) li.className = 'me';
+    list.forEach((e, i) => { const li = document.createElement('li'); if ((save.myIds || []).includes(e.id)) li.className = 'me';
       const cell = (c, t) => { const sp = document.createElement('span'); sp.className = c; sp.textContent = t; li.append(sp); };
-      cell('rk', '#' + (i + 1)); cell('nm', e.name); cell('st', e.final ? 'FINAL' : 'STN ' + e.station); cell('sc', e.score.toLocaleString()); ol.append(li); });
+      cell('rk', '#' + (i + 1)); cell('nm', e.name); cell('st', key === 'total' ? '' : 'STN ' + e.station); cell('sc', e.score.toLocaleString()); ol.append(li); });
     el.append(ol);
   }
-  const mine = document.getElementById('bMine'); if (mine) mine.textContent = `Your best score: ${(save.bestScore || 0).toLocaleString()}`;
+  const mine = document.getElementById('bMine');
+  if (mine) mine.textContent = `You: total ${(save.totalScore || 0).toLocaleString()}${save.won ? ' (campaign complete)' : ` · station ${stationNo()} of ${STATIONS}`} · best single station ${(save.bestScore || 0).toLocaleString()}`;
 }
 async function lbFetch() {
-  try { const r = await fetch(LB_URL + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; const j = await r.json(); lb.list = j.scores || []; lb.err = false; }
+  try { const r = await fetch(LB_URL + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw 0; const j = await r.json();
+    lb.station = j.station || j.scores || []; lb.total = j.total || []; lb.err = false; }
   catch (e) { lb.err = true; }
   renderBoards();
 }
-const qualifies = sc => sc > 0 && (!lb.list || lb.list.length < 10 || sc > lb.list[lb.list.length - 1].score);
-function offerScore(sc) {
-  if (!qualifies(sc)) return;
-  lb.pending = { name: '', score: sc, station: run.n, crew: M.carried.length, final: !!run.final };
+const qualifies = (key, sc) => sc > 0 && (!lb[key] || lb[key].length < 10 || sc > lb[key][lb[key].length - 1].score);
+function offerScores(stationScore, totalScore) {
+  lb.pending = [];
+  if (totalScore && qualifies('total', totalScore)) lb.pending.push({ board: 'total', score: totalScore });
+  if (qualifies('station', stationScore)) lb.pending.push({ board: 'station', score: stationScore });
+  if (!lb.pending.length) return;
+  lb.pending.forEach(e => { e.station = run.n; e.crew = M.carried.length; });
   const f = document.getElementById('rForm'), inp = document.getElementById('rName');
+  f.querySelector('label').textContent = lb.pending.some(e => e.board === 'total') ? 'YOUR CAMPAIGN TOTAL MADE THE TOP 10! ENTER YOUR INITIALS' : 'TOP 10 STATION SCORE! ENTER YOUR INITIALS';
+  f.querySelector('button').disabled = false;
   f.hidden = false; inp.value = save.name || ''; inp.focus(); inp.select();
 }
 document.getElementById('rName').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); });
 document.getElementById('rForm').addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, inp = document.getElementById('rName'), name = inp.value.trim();
-  if (!name || !lb.pending) { inp.focus(); return; }
+  if (!name || !lb.pending.length) { inp.focus(); return; }
   save.name = name; persist(); f.querySelector('button').disabled = true;
-  const label = f.querySelector('label');
+  const ranks = [];
   try {
-    const r = await fetch(LB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...lb.pending, name }) });
-    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'failed');
-    lb.list = j.scores; lb.err = false; lb.pending = null;
-    if (j.id) { save.myIds = (save.myIds || []).concat(j.id).slice(-50); persist(); }
+    while (lb.pending.length) {
+      const entry = lb.pending[0];
+      const r = await fetch(LB_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...entry, name }) });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || 'failed');
+      lb[entry.board] = j.scores; lb.err = false; lb.pending.shift();
+      if (j.id) { save.myIds = (save.myIds || []).concat(j.id).slice(-50); persist(); }
+      if (j.rank) ranks.push(`#${j.rank} ${entry.board === 'total' ? 'ALL-TIME' : 'STATION'}`);
+    }
     f.hidden = true; renderBoards(); sfx.win();
-    const stamp = document.getElementById('rStamp'); stamp.textContent = j.rank ? `#${j.rank} ON THE TOP 10` : 'SCORE SENT'; stamp.hidden = false;
+    const stamp = document.getElementById('rStamp'); stamp.textContent = ranks.length ? ranks.join(' · ') : 'SCORE SENT'; stamp.hidden = false;
     document.getElementById('bBack').focus({ preventScroll: true });
-  } catch (err) { label.textContent = `Couldn't send the score (${err.message || 'offline'}). Try again?`; f.querySelector('button').disabled = false; inp.focus(); }
+  } catch (err) { f.querySelector('label').textContent = `Couldn't send the score (${err.message || 'offline'}). Try again?`; f.querySelector('button').disabled = false; inp.focus(); }
 });
 function openBoard() { mode = 'board'; showPanel('board'); renderBoards(); lbFetch(); }
 document.getElementById('bBoard').onclick = () => openBoard();
 document.getElementById('bBoardBack').onclick = () => toHub();
 renderBoards(); lbFetch();
 document.getElementById('bStart').onclick = () => { audio.init(); toHub(); };
-document.getElementById('bLaunch').onclick = () => { audio.init(); startRun(); };
-document.getElementById('bBack').onclick = () => toHub();
+function newCampaign() { const keep = { music: save.music, name: save.name, myIds: save.myIds, hints: save.hints };
+  save = Object.assign(freshSave(), keep); persist(); renderHub(); showBanner('NEW CAMPAIGN', C.line, `Destroy all ${STATIONS} stations`, 2.4); say('hangar', true); }
+function launch() { if (save.won) newCampaign(); else startRun(); }
+document.getElementById('bLaunch').onclick = () => { audio.init(); launch(); };
+document.getElementById('bBack').onclick = () => backFromResult();
 document.getElementById('bMusic').onclick = () => { audio.init(); music.toggle(); };
 document.getElementById('bReset').onclick = () => {
   const b = document.getElementById('bReset');
@@ -1293,9 +1343,9 @@ function drawHangar() {
 function update(dt) {
   clock += dt;
   if (mode === 'title' && hit('ok')) { toHub(); return; }
-  if (mode === 'hub') { if (hit('ok')) { startRun(); return; } if (hit('board')) { openBoard(); return; } for (let i = 0; i < UPS.length; i++) if (hit('u' + (i + 1))) buy(i); }
+  if (mode === 'hub') { if (hit('ok')) { launch(); return; } if (hit('board')) { openBoard(); return; } for (let i = 0; i < UPS.length; i++) if (hit('u' + (i + 1))) buy(i); }
   if (mode === 'board' && (hit('ok') || hit('board') || hit('pause'))) { toHub(); return; }
-  if (mode === 'result' && hit('ok')) { toHub(); return; }
+  if (mode === 'result' && hit('ok')) { backFromResult(); return; }
   if (hit('music')) { audio.init(); music.toggle(); }
   tracks.update(dt);
   if ((mode === 'fly' || mode === 'maze') && hit('pause') && !run.over) paused = !paused;
@@ -1310,7 +1360,7 @@ function render() {
   if (mode === 'fly') drawFly();
   else if (mode === 'maze') drawMaze();
   else if (mode === 'outro') drawOutro();
-  else if (mode === 'hub' || mode === 'result' || mode === 'board') { drawHangar(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawFx(); }
+  else if (mode === 'hub' || mode === 'result' || mode === 'board') { drawHangar(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawFx(); if (mode === 'hub') drawBanner(); }
   else { drawStars(clock * 30, 0); ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(Math.min(W, H) / 220, Math.min(W, H) / 220); ctx.globalAlpha = 0.35; drawReactor(0, 0, false); ctx.restore(); ctx.globalAlpha = 1; }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.shadowBlur = 0;
   if (mode === 'fly' || mode === 'maze' || mode === 'outro') drawBanner();
